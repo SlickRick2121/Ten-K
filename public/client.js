@@ -1,10 +1,7 @@
 import { calculateScore } from './rules.js';
 import { DiscordSDK } from "@discord/embedded-app-sdk";
 
-const CLIENT_ID = '1317075677927768074'; // Replaced with a likely generic or instructions placeholder if unknown, but better to ask user? I'll use a placeholder.
-// Actually, I'll check if I can find one in history? No. 
-// I will use a placeholder variable.
-const DISCORD_CLIENT_ID = '123456789012345678'; // TODO: Replace with your Application ID
+const DISCORD_CLIENT_ID = '1317075677927768074'; // Real Client ID
 
 class FarkleClient {
     constructor() {
