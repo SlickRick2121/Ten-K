@@ -7,13 +7,27 @@ const SCORING_RULES = {
     TRIPLE_5: 500,
     TRIPLE_6: 600,
     SINGLE_1: 100,
-    SINGLE_5: 50
+    SINGLE_5: 50,
+    STRAIGHT: 1500
 };
 
 function calculateScore(dice) {
     if (!dice || dice.length === 0) return 0;
     const counts = {};
     for (const die of dice) counts[die] = (counts[die] || 0) + 1;
+
+    // Check Straight
+    if (dice.length === 6) {
+        let isStraight = true;
+        for (let i = 1; i <= 6; i++) {
+            if (counts[i] !== 1) {
+                isStraight = false;
+                break;
+            }
+        }
+        if (isStraight) return SCORING_RULES.STRAIGHT;
+    }
+
     let score = 0;
     for (let face = 1; face <= 6; face++) {
         const count = counts[face] || 0;

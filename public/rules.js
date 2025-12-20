@@ -6,7 +6,8 @@ export const SCORING_RULES = {
     TRIPLE_5: 500,
     TRIPLE_6: 600,
     SINGLE_1: 100,
-    SINGLE_5: 50
+    SINGLE_5: 50,
+    STRAIGHT: 1500 // 1-2-3-4-5-6
 };
 
 export function calculateScore(dice) {
@@ -15,6 +16,18 @@ export function calculateScore(dice) {
     const counts = {};
     for (const die of dice) {
         counts[die] = (counts[die] || 0) + 1;
+    }
+
+    // Check for Straight (Must be exactly 6 dice, 1 of each)
+    if (dice.length === 6) {
+        let isStraight = true;
+        for (let i = 1; i <= 6; i++) {
+            if (counts[i] !== 1) {
+                isStraight = false;
+                break;
+            }
+        }
+        if (isStraight) return SCORING_RULES.STRAIGHT;
     }
 
     let score = 0;
@@ -72,7 +85,19 @@ export function isScoringSelection(dice) {
         const count = counts[face] || 0;
         if (count > 0) {
             if (count < 3 && face !== 1 && face !== 5) {
-                return false; // Found a naked 2, 3, 4, or 6
+                // If this is a straight, it's valid.
+                // A straight must include all 1-6.
+                // If we found a "naked" non-1/5, it's typically invalid UNLESS it's part of a straight.
+                // But if it IS part of a straight, then we basically have 1 of each.
+                // If dice.length == 6 and we have 1 of each, we return true early?
+
+                // Let's check straight condition first for the whole set.
+                if (dice.length === 6) {
+                    const isStraight = (counts[1] === 1 && counts[2] === 1 && counts[3] === 1 && counts[4] === 1 && counts[5] === 1 && counts[6] === 1);
+                    if (isStraight) return true;
+                }
+
+                return false; // Found a naked 2, 3, 4, or 6 and it's not a straight
             }
         }
     }
@@ -93,6 +118,9 @@ export function hasPossibleMoves(dice) {
     for (let face = 2; face <= 6; face++) {
         if ((counts[face] || 0) >= 3) return true;
     }
+
+    // Check Straight
+    if (counts[1] === 1 && counts[2] === 1 && counts[3] === 1 && counts[4] === 1 && counts[5] === 1 && counts[6] === 1) return true;
 
     return false;
 }
