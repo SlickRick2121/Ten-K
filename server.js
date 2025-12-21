@@ -240,223 +240,232 @@ io.on('connection', (socket) => {
     });
 
     socket.on('join_game', (data) => {
-        const requestedRoom = data?.roomCode;
-        let roomCode = requestedRoom && games.has(requestedRoom) ? requestedRoom : ROOM_NAMES[0];
-        let game = games.get(roomCode);
+        try {
+            const requestedRoom = data?.roomCode;
+            let roomCode = requestedRoom && games.has(requestedRoom) ? requestedRoom : ROOM_NAMES[0];
+            let game = games.get(roomCode);
 
-        console.log(`[Server] Socket ${socket.id} joining ${roomCode}`);
+            if (!game) {
+                console.error(`[Server] Error: Game not found for room ${roomCode}`);
+                socket.emit('error', 'Game Room Error');
+                return;
+            }
 
-        // 1. Try to find a disconnected slot with this socket ID (for quick reconnects)
-        let existingPlayer = game.players.find(p => p.id === socket.id);
-        if (existingPlayer) {
-            existingPlayer.connected = true;
+            console.log(`[Server] Socket ${socket.id} joining ${roomCode}`);
+
+            // 1. Try to find a disconnected slot with this socket ID (for quick reconnects)
+            let existingPlayer = game.players.find(p => p.id === socket.id);
+            if (existingPlayer) {
+                existingPlayer.connected = true;
+                socket.join(roomCode);
+                socket.emit('joined', { playerId: socket.id, state: game.getState() });
+                io.to(roomCode).emit('game_state_update', game.getState());
+                return;
+            }
+
+            // 2. Try to find any disconnected slot to reclaim
+            let disconnectedPlayer = game.players.find(p => !p.connected);
+            if (disconnectedPlayer) {
+                console.log(`[Server] Reclaiming ${disconnectedPlayer.name} in ${roomCode} for ${socket.id}`);
+                disconnectedPlayer.id = socket.id;
+                disconnectedPlayer.connected = true;
+
+                socket.join(roomCode);
+                socket.emit('joined', { playerId: socket.id, state: game.getState() });
+                io.to(roomCode).emit('game_state_update', game.getState());
+                io.emit('room_list', getRoomList());
+                return;
+            }
+
+            // 3. New Player assignment
+            let name;
+            for (let i = 1; i <= 10; i++) {
+                let candidate = `Player ${i}`;
+                if (!game.players.some(p => p.name === candidate)) {
+                    name = candidate;
+                    break;
+                }
+            }
+
+            if (!name || game.players.length >= 10) {
+                socket.emit('error', 'Room Full');
+                return;
+            }
+
+            game.addPlayer(socket.id, name);
+            console.log(`[Server] Assigned ${name} to ${socket.id} in ${roomCode}`);
+
             socket.join(roomCode);
             socket.emit('joined', { playerId: socket.id, state: game.getState() });
-            io.to(roomCode).emit('game_state_update', game.getState());
-            return;
-        }
-
-        // 2. Try to find any disconnected slot to reclaim
-        let disconnectedPlayer = game.players.find(p => !p.connected);
-        if (disconnectedPlayer) {
-            console.log(`[Server] Reclaiming ${disconnectedPlayer.name} in ${roomCode} for ${socket.id}`);
-            disconnectedPlayer.id = socket.id;
-            disconnectedPlayer.connected = true;
-
-            socket.join(roomCode);
-            socket.emit('joined', { playerId: socket.id, state: game.getState() });
+            // Immediate broadcast to room so others see the new player
             io.to(roomCode).emit('game_state_update', game.getState());
             io.emit('room_list', getRoomList());
-            return;
-        }
 
-        // 3. New Player assignment
-        let name;
-        for (let i = 1; i <= 10; i++) {
-            let candidate = `Player ${i}`;
-            if (!game.players.some(p => p.name === candidate)) {
-                name = candidate;
-                break;
+            // Auto-Start if we have enough players and game is waiting
+            if (game.gameStatus === 'waiting' && game.players.length >= 2) {
+                console.log(`[Game ${roomCode}] Auto-starting with ${game.players.length} players.`);
+                game.start();
+                io.to(roomCode).emit('game_start', game.getState());
             }
-        }
-
-        if (!name || game.players.length >= 10) {
-            socket.emit('error', 'Room Full');
-            return;
-        }
-
-        game.addPlayer(socket.id, name);
-        console.log(`[Server] Assigned ${name} to ${socket.id} in ${roomCode}`);
-
-        socket.join(roomCode);
-        socket.emit('joined', { playerId: socket.id, state: game.getState() });
-        // Immediate broadcast to room so others see the new player
-        io.to(roomCode).emit('game_state_update', game.getState());
-        io.emit('room_list', getRoomList());
-
-        // Auto-Start if we have enough players and game is waiting
-        if (game.gameStatus === 'waiting' && game.players.length >= 2) {
-            console.log(`[Game ${roomCode}] Auto-starting with ${game.players.length} players.`);
-            game.start();
-            io.to(roomCode).emit('game_start', game.getState());
+        } catch (err) {
+            console.error("[Server] Crash prevented in join_game:", err);
+            socket.emit('error', "Server Internal Error during Join");
         }
     });
 
     socket.on('start_game', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (game && game.players.length >= 2) {
-            game.start();
-            io.to(roomCode).emit('game_start', game.getState());
+        game.start();
+        io.to(roomCode).emit('game_start', game.getState());
+        io.emit('room_list', getRoomList());
+    }
+    });
+
+socket.on('leave_game', () => {
+    for (const game of games.values()) {
+        const p = game.players.find(p => p.id === socket.id);
+        if (p) {
+            p.connected = false;
+            if (game.gameStatus === 'waiting') {
+                game.players = game.players.filter(pl => pl.id !== socket.id);
+            }
+
+            // Auto-Reset if empty
+            const activeCount = game.players.filter(p => p.connected).length;
+            if (activeCount === 0) {
+                console.log(`[Game ${game.roomCode}] Resetting empty room.`);
+                game.players = [];
+                game.gameStatus = 'waiting';
+                game.resetRound();
+            }
+
+            socket.leave(game.roomCode);
             io.emit('room_list', getRoomList());
+            io.to(game.roomCode).emit('game_state_update', game.getState());
         }
-    });
+    }
+});
 
-    socket.on('leave_game', () => {
-        for (const game of games.values()) {
-            const p = game.players.find(p => p.id === socket.id);
-            if (p) {
-                p.connected = false;
-                if (game.gameStatus === 'waiting') {
-                    game.players = game.players.filter(pl => pl.id !== socket.id);
-                }
+socket.on('roll', ({ roomCode }) => {
+    const game = games.get(roomCode);
+    if (!game) return;
 
-                // Auto-Reset if empty
-                const activeCount = game.players.filter(p => p.connected).length;
-                if (activeCount === 0) {
-                    console.log(`[Game ${game.roomCode}] Resetting empty room.`);
-                    game.players = [];
-                    game.gameStatus = 'waiting';
-                    game.resetRound();
-                }
+    const result = game.roll(socket.id);
+    if (result.error) {
+        socket.emit('error', result.error);
+    } else {
+        io.to(roomCode).emit('roll_result', {
+            dice: result.dice,
+            farkle: result.farkle,
+            hotDice: result.hotDice,
+            state: game.getState()
+        });
 
-                socket.leave(game.roomCode);
-                io.emit('room_list', getRoomList());
-                io.to(game.roomCode).emit('game_state_update', game.getState());
-            }
-        }
-    });
-
-    socket.on('roll', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (!game) return;
-
-        const result = game.roll(socket.id);
-        if (result.error) {
-            socket.emit('error', result.error);
-        } else {
-            io.to(roomCode).emit('roll_result', {
-                dice: result.dice,
-                farkle: result.farkle,
-                hotDice: result.hotDice,
-                state: game.getState()
-            });
-
-            if (result.farkle) {
-                setTimeout(() => {
-                    game.farkle();
-                    io.to(roomCode).emit('game_state_update', game.getState());
-                }, 2000);
-            }
-        }
-    });
-
-    socket.on('toggle_die', ({ roomCode, dieId }) => {
-        const game = games.get(roomCode);
-        if (game) {
-            game.toggleSelection(socket.id, dieId);
-            io.to(roomCode).emit('game_state_update', game.getState());
-        }
-    });
-
-    socket.on('bank', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (game) {
-            const res = game.bank(socket.id);
-            if (res && res.error) {
-                socket.emit('error', res.error);
-            } else {
+        if (result.farkle) {
+            setTimeout(() => {
+                game.farkle();
                 io.to(roomCode).emit('game_state_update', game.getState());
-            }
+            }, 2000);
         }
-    });
+    }
+});
 
-    socket.on('restart', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (game && game.gameStatus === 'finished') {
-            game.gameStatus = 'playing';
-            game.players.forEach(p => p.score = 0);
-            game.currentPlayerIndex = 0;
-            game.resetRound();
-            game.isFinalRound = false;
-            game.winner = null;
-            io.to(roomCode).emit('game_start', game.getState());
-        }
-    });
+socket.on('toggle_die', ({ roomCode, dieId }) => {
+    const game = games.get(roomCode);
+    if (game) {
+        game.toggleSelection(socket.id, dieId);
+        io.to(roomCode).emit('game_state_update', game.getState());
+    }
+});
 
-    socket.on('force_next_turn', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (game && game.gameStatus === 'playing') {
-            console.log(`[Game ${roomCode}] Force Next Turn triggered by ${socket.id}`);
-            game.nextTurn();
+socket.on('bank', ({ roomCode }) => {
+    const game = games.get(roomCode);
+    if (game) {
+        const res = game.bank(socket.id);
+        if (res && res.error) {
+            socket.emit('error', res.error);
+        } else {
             io.to(roomCode).emit('game_state_update', game.getState());
         }
-    });
+    }
+});
 
-    socket.on('debug_restart_preserve', ({ roomCode }) => {
-        const game = games.get(roomCode);
-        if (game) {
-            console.log(`[Game ${roomCode}] Debug Restart (Preserve) triggered by ${socket.id}`);
-            // Reset round state but keep scores and connections
-            game.resetRound();
-            game.currentPlayerIndex = 0; // Optional: Reset to first player or keep current? User said "no-status-loss", usually implies keep scores. 
-            // If they mean "restart game but keep players", then scores should reset? 
-            // "no-status-loss" likely means "don't disconnect us".
-            // "restart function" implies scores go to 0. 
-            // "debug no-status-loss restart" -> "status" could mean "connection status".
-            // I will reset scores to 0 because it's a "restart", but explicitly NOT kick players.
-            // Wait, "no-status-loss" might mean "keep my accumulated score but fix the broken state".
-            // Let's implement a "Soft Reset" that creates a fresh round state but keeps scores.
-            // Actually, usually "Restart" means new game. "No status loss" might mean "Don't make me rejoin".
-            // Let's do a Full Game Restart (Scores 0) but keep the room populated.
-            // The existing 'restart' already does this but only if 'finished'.
-            // This debug one will force it anytime.
+socket.on('restart', ({ roomCode }) => {
+    const game = games.get(roomCode);
+    if (game && game.gameStatus === 'finished') {
+        game.gameStatus = 'playing';
+        game.players.forEach(p => p.score = 0);
+        game.currentPlayerIndex = 0;
+        game.resetRound();
+        game.isFinalRound = false;
+        game.winner = null;
+        io.to(roomCode).emit('game_start', game.getState());
+    }
+});
 
-            game.gameStatus = 'playing';
-            game.players.forEach(p => p.score = 0);
-            game.currentPlayerIndex = 0;
-            game.resetRound();
-            game.isFinalRound = false;
-            game.winner = null;
+socket.on('force_next_turn', ({ roomCode }) => {
+    const game = games.get(roomCode);
+    if (game && game.gameStatus === 'playing') {
+        console.log(`[Game ${roomCode}] Force Next Turn triggered by ${socket.id}`);
+        game.nextTurn();
+        io.to(roomCode).emit('game_state_update', game.getState());
+    }
+});
 
-            io.to(roomCode).emit('game_start', game.getState());
-        }
-    });
+socket.on('debug_restart_preserve', ({ roomCode }) => {
+    const game = games.get(roomCode);
+    if (game) {
+        console.log(`[Game ${roomCode}] Debug Restart (Preserve) triggered by ${socket.id}`);
+        // Reset round state but keep scores and connections
+        game.resetRound();
+        game.currentPlayerIndex = 0; // Optional: Reset to first player or keep current? User said "no-status-loss", usually implies keep scores. 
+        // If they mean "restart game but keep players", then scores should reset? 
+        // "no-status-loss" likely means "don't disconnect us".
+        // "restart function" implies scores go to 0. 
+        // "debug no-status-loss restart" -> "status" could mean "connection status".
+        // I will reset scores to 0 because it's a "restart", but explicitly NOT kick players.
+        // Wait, "no-status-loss" might mean "keep my accumulated score but fix the broken state".
+        // Let's implement a "Soft Reset" that creates a fresh round state but keeps scores.
+        // Actually, usually "Restart" means new game. "No status loss" might mean "Don't make me rejoin".
+        // Let's do a Full Game Restart (Scores 0) but keep the room populated.
+        // The existing 'restart' already does this but only if 'finished'.
+        // This debug one will force it anytime.
 
-    socket.on('disconnect', () => {
-        console.log('Client disconnected:', socket.id);
-        for (const game of games.values()) {
-            const player = game.players.find(p => p.id === socket.id);
-            if (player) {
-                player.connected = false;
+        game.gameStatus = 'playing';
+        game.players.forEach(p => p.score = 0);
+        game.currentPlayerIndex = 0;
+        game.resetRound();
+        game.isFinalRound = false;
+        game.winner = null;
 
-                // Auto-Reset if empty
-                const activeCount = game.players.filter(p => p.connected).length;
-                if (activeCount === 0) {
-                    console.log(`[Game ${game.roomCode}] Resetting empty room.`);
-                    game.players = [];
-                    game.gameStatus = 'waiting';
-                    game.resetRound();
-                }
+        io.to(roomCode).emit('game_start', game.getState());
+    }
+});
 
+socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+    for (const game of games.values()) {
+        const player = game.players.find(p => p.id === socket.id);
+        if (player) {
+            player.connected = false;
+
+            // Auto-Reset if empty
+            const activeCount = game.players.filter(p => p.connected).length;
+            if (activeCount === 0) {
+                console.log(`[Game ${game.roomCode}] Resetting empty room.`);
+                game.players = [];
+                game.gameStatus = 'waiting';
+                game.resetRound();
+            }
+
+            io.emit('room_list', getRoomList());
+
+            if (game.gameStatus === 'waiting') {
+                game.players = game.players.filter(pl => pl.id !== socket.id);
                 io.emit('room_list', getRoomList());
-
-                if (game.gameStatus === 'waiting') {
-                    game.players = game.players.filter(pl => pl.id !== socket.id);
-                    io.emit('room_list', getRoomList());
-                }
             }
         }
-    });
+    }
+});
 });
 
 function getRoomList() {
