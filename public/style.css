@@ -32,6 +32,73 @@
 
     --font-main: 'Outfit', 'Inter', system-ui, sans-serif;
     --anim-speed: 0.3s;
+
+    --auroraColor0: rgb(255 0 0);
+    --auroraColor1: rgb(0 255 0);
+    --auroraColor2: rgb(0 0 255);
+
+    --bg0: #FFFFFF;
+    --bg: color-mix(in srgb, var(--auroraColor1) 40%, var(--bg0));
+    --bgColor: color-mix(in srgb, #000000 70%, var(--bg));
+
+    --bgColor90: color-mix(in srgb, #000000 10%, var(--bgColor));
+    --bgColor80: color-mix(in srgb, #000000 20%, var(--bgColor));
+    --bgColor70: color-mix(in srgb, #000000 30%, var(--bgColor));
+    --bgColor60: color-mix(in srgb, #000000 40%, var(--bgColor));
+    --bgColor50: color-mix(in srgb, #000000 50%, var(--bgColor));
+
+    --bgColor110: color-mix(in srgb, #FFFFFF 10%, var(--bgColor));
+    --bgColor120: color-mix(in srgb, #FFFFFF 20%, var(--bgColor));
+    --bgColor130: color-mix(in srgb, #FFFFFF 30%, var(--bgColor));
+    --bgColor140: color-mix(in srgb, #FFFFFF 40%, var(--bgColor));
+    --bgColor150: color-mix(in srgb, #FFFFFF 50%, var(--bgColor));
+
+    --fireLight1: #ed8d0e;
+    --fireLight2: #ffff00;
+}
+
+.bgColor {
+    fill: var(--bgColor);
+}
+
+.bgColor90 {
+    fill: var(--bgColor90);
+}
+
+.bgColor80 {
+    fill: var(--bgColor80);
+}
+
+.bgColor70 {
+    fill: var(--bgColor70);
+}
+
+.bgColor60 {
+    fill: var(--bgColor60);
+}
+
+.bgColor50 {
+    fill: var(--bgColor50);
+}
+
+.bgColor110 {
+    fill: var(--bgColor110);
+}
+
+.bgColor120 {
+    fill: var(--bgColor120);
+}
+
+.bgColor130 {
+    fill: var(--bgColor130);
+}
+
+.bgColor140 {
+    fill: var(--bgColor140);
+}
+
+.bgColor150 {
+    fill: var(--bgColor150);
 }
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Bungee&display=swap');
@@ -45,18 +112,170 @@
 }
 
 body {
-    font-family: var(--font-main);
-    background-color: var(--bg-dark);
-    /* Dynamic background */
-    background: radial-gradient(circle at 15% 50%, rgba(217, 0, 255, 0.15), transparent 25%),
-        radial-gradient(circle at 85% 30%, rgba(0, 242, 255, 0.15), transparent 25%),
-        linear-gradient(180deg, #050508 0%, #1a1a2e 100%);
-    color: var(--text-main);
+    padding: 0px;
     height: 100vh;
     overflow: hidden;
+    background: var(--bgColor130);
+    font-family: var(--font-main);
+    color: var(--text-main);
     display: flex;
     flex-direction: column;
     align-items: center;
+}
+
+#gsapWrapper {
+    position: fixed;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    width: 100vw;
+    height: 100vh;
+    visibility: hidden;
+    z-index: -1;
+    background: linear-gradient(180deg, rgba(0, 0, 0, 0.6) 0%, rgba(0, 0, 0, 0.9) 50%, var(--bgColor130) 50%, var(--bgColor130) 100%),
+        linear-gradient(60deg, var(--auroraColor0), transparent 50%),
+        linear-gradient(127deg, var(--auroraColor1), transparent 80%),
+        linear-gradient(280deg, var(--auroraColor2), transparent 50%);
+}
+
+#moonWrapper {
+    position: fixed;
+    display: inline-block;
+    top: 2px;
+    left: 0px;
+    right: 0px;
+}
+
+#moonCenter {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    padding: 15px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+#moon {
+    display: block;
+    width: 250px;
+    max-width: 30vw;
+    aspect-ratio: 1/1;
+    background: #FFFFFF;
+    border-radius: 50%;
+    margin-left: auto;
+}
+
+#moon svg {
+    opacity: 1;
+    width: 100%;
+    aspect-ratio: 1/1;
+    filter: blur(5px);
+}
+
+#gsapBody {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    object-fit: contain;
+    perspective: 1000px;
+}
+
+.svgWrapper {
+    position: absolute;
+    overflow: visible;
+    margin-right: auto;
+    transform-style: preserve-3d;
+    will-change: transform;
+}
+
+.svgWrapper svg {
+    width: 1200px;
+    height: 800px;
+    overflow: visible;
+}
+
+/* Depth layering */
+.svgWrapper:has(svg#svg00) {
+    transform: translateZ(0px);
+}
+
+.svgWrapper:has(svg#svg0) {
+    transform: translateZ(-250px);
+}
+
+.svgWrapper:has(svg#svg1) {
+    transform: translateZ(-300px);
+}
+
+.svgWrapper:has(svg#svg2d) {
+    transform: translateZ(-325px);
+}
+
+.svgWrapper:has(svg#svg2Igloo) {
+    transform: translateZ(-400px);
+}
+
+.svgWrapper:has(svg#svg2),
+.svgWrapper:has(svg#svg2b) {
+    transform: translateZ(-400px);
+}
+
+.svgWrapper:has(svg#svg3) {
+    transform: translateZ(-600px);
+}
+
+.svgWrapper:has(svg#svg4) {
+    transform: translateZ(-1250px);
+}
+
+.svgWrapper:has(svg#svg5) {
+    transform: translateZ(-1500px);
+}
+
+.svgWrapper:has(svg#svg6) {
+    transform: translateZ(-1750px);
+}
+
+/* SVG Color Links */
+linearGradient#branchFill stop:first-of-type {
+    stop-color: var(--bgColor80);
+}
+
+linearGradient#branchFill stop:last-of-type {
+    stop-color: var(--bgColor130);
+}
+
+linearGradient#branchStroke stop:first-of-type {
+    stop-color: var(--bgColor);
+}
+
+linearGradient#branchStroke stop:last-of-type {
+    stop-color: var(--bgColor150);
+}
+
+linearGradient#iglooFill stop:first-of-type {
+    stop-color: var(--bgColor120);
+}
+
+linearGradient#iglooFill stop:last-of-type {
+    stop-color: var(--bgColor150);
+}
+
+linearGradient#iglooStroke stop:first-of-type {
+    stop-color: var(--bgColor130);
+}
+
+linearGradient#iglooStroke stop:last-of-type {
+    stop-color: var(--bgColor120);
+}
+
+radialGradient#iglooFire stop:first-of-type {
+    stop-color: var(--fireLight1);
+}
+
+radialGradient#iglooFire stop:last-of-type {
+    stop-color: var(--fireLight2);
 }
 
 /* Background Dice Animation Container */
@@ -85,16 +304,38 @@ body {
     }
 
     20% {
-        opacity: 0.1;
+        opacity: 0.15;
     }
 
     80% {
-        opacity: 0.1;
+        opacity: 0.15;
     }
 
     100% {
         transform: translateY(-10vh) rotate(360deg);
         opacity: 0;
+    }
+}
+
+.bg-particle {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.4;
+    animation: twinkle ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes twinkle {
+
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.2;
+    }
+
+    50% {
+        transform: scale(1.5);
+        opacity: 0.6;
     }
 }
 
@@ -119,19 +360,6 @@ body {
     backdrop-filter: blur(15px);
 }
 
-.game-header h1 {
-    font-size: 2.5rem;
-    font-weight: 800;
-    text-transform: uppercase;
-    letter-spacing: 4px;
-    background: linear-gradient(135deg, var(--primary), #fff, var(--accent));
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 10px rgba(0, 242, 255, 0.5));
-    animation: titlePulse 3s infinite alternate;
-}
-
 @keyframes titlePulse {
     0% {
         filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.3));
@@ -152,12 +380,11 @@ body {
     font-family: 'Bungee', cursive !important;
     font-size: 2.8rem !important;
     font-style: italic;
-    line-height: 0.9;
+    line-height: 0.8 !important;
     color: #ffcc00;
-    /* Vibrant Yellow from image */
-    text-shadow: 3px 3px 0px #000, 0 0 10px rgba(255, 204, 0, 0.4);
+    text-shadow: 3px 3px 0px #000, 0 0 15px rgba(255, 204, 0, 0.3);
     margin: 0 !important;
-    letter-spacing: -1px;
+    letter-spacing: -2px !important;
     background: none !important;
     -webkit-text-fill-color: initial !important;
 }

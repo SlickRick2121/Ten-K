@@ -1,6 +1,12 @@
 import * as THREE from "three";
-import { RoundedBoxGeometry } from "https://esm.sh/three@0.160.0/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import * as CANNON from "cannon-es";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+import chroma from "https://cdn.jsdelivr.net/npm/chroma-js@3.1.2/+esm";
+
+gsap.registerPlugin(ScrollTrigger, MotionPathPlugin);
 
 // Game Rules (Merged from rules.js to avoid module resolution issues)
 const SCORING_RULES = {
@@ -101,6 +107,8 @@ class FarkleClient {
             this.gameState = null;
             this.discordSdk = null;
             this.playerName = null;
+            this.isRolling = false;
+            this.pendingState = null;
 
             // UI Elements
             this.ui = {
@@ -137,7 +145,7 @@ class FarkleClient {
             this.dice3D = new Dice3DManager(this.ui.threeCanvasContainer);
             this.initListeners();
             this.initSettings();
-            this.initBackgroundDice();
+            this.initGSAPBackground();
 
             this.debugLog("Internal modules inited");
 
@@ -227,26 +235,112 @@ class FarkleClient {
         }
     }
 
-    initBackgroundDice() {
-        const container = document.getElementById('bg-dice-container');
-        if (!container) return;
-        const dieChars = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
-        for (let i = 0; i < 15; i++) {
-            const el = document.createElement('div');
-            el.classList.add('bg-die');
-            el.textContent = dieChars[Math.floor(Math.random() * 6)];
-            el.style.left = Math.random() * 100 + '%';
-            el.style.animationDuration = (20 + Math.random() * 30) + 's';
-            el.style.animationDelay = (Math.random() * -30) + 's';
-            el.style.fontSize = (24 + Math.random() * 40) + 'px';
-            el.style.opacity = 0.1 + Math.random() * 0.1;
-            container.appendChild(el);
+    initGSAPBackground() {
+        const select = (e) => document.querySelector(e);
+        const gsapBody = select("#gsapBody");
+        if (!gsapBody) return;
+
+        const t0 = select("#t0"), t1 = select("#t1"), t2 = select("#t2");
+        const svgs = ["svg00", "svg0", "svg1", "svg2", "svg2b", "svg2d", "svg3", "svg4", "svg5", "svg6"].map(id => select(`svg#${id}`));
+        const bodyStyle = getComputedStyle(document.body);
+
+        const closePath = (svg, fillColor) => {
+            const path = svg.querySelector(".mPath");
+            if (!path) return;
+            const id = path.getAttribute("id");
+            const oldPath = path.getAttribute("d");
+            let boxPath = path.cloneNode(true);
+            boxPath.id = id + "b";
+            boxPath.classList.remove("mPath");
+            boxPath.classList.add("mFill");
+            if (fillColor.charAt(0) == "#") gsap.set(boxPath, { fill: fillColor });
+            else boxPath.classList.add(fillColor);
+            let newPath = oldPath + " V 1200 H -800 Z";
+            gsap.set(boxPath, { attr: { d: newPath } });
+            svg.appendChild(boxPath);
+        };
+
+        const createTrees = (svg, start, direction, division, numT, scale) => {
+            const path = svg.querySelector(".mPath");
+            if (!path) return;
+            for (let i = 0; i < numT; i++) {
+                let newTree;
+                if (scale <= 0.15) newTree = t2.cloneNode(true);
+                else if (scale <= 0.3) newTree = t1.cloneNode(true);
+                else newTree = t0.cloneNode(true);
+
+                newTree.id = svg.id + "tb" + i;
+                svg.appendChild(newTree);
+
+                let startPos = (direction > 0) ? (0.5 - start + i * (1 / division)) : (0.5 + start - i * (1 / division));
+                gsap.set(newTree, {
+                    scale: scale,
+                    motionPath: { path: path, align: path, alignOrigin: [0.5, 0.97], start: startPos, end: startPos, autoRotate: true }
+                });
+            }
+        };
+
+        // Initialize Background Elements
+        const [s00, s0, s1, s2, s2b, s2d, s3, s4, s5, s6] = svgs;
+        closePath(s00, "bgColor130"); closePath(s0, "bgColor130"); closePath(s1, "bgColor140");
+        closePath(s2, "bgColor150"); closePath(s3, "bgColor130"); closePath(s4, "bgColor");
+        closePath(s5, "bgColor90"); closePath(s6, "bgColor80");
+
+        createTrees(s00, 0.49, 1, 1, 2, 2.1); createTrees(s00, 0.49, -1, 1, 2, 2.1);
+        createTrees(s0, 0.42, 1, 20, 4, 2); createTrees(s0, 0.32, -1, 20, 3, 2);
+        createTrees(s1, 0.30, 1, 34, 2, 1.5); createTrees(s2d, 0.42, 1, 13, 3, 2);
+        createTrees(s2b, 0.42, 1, 18, 3, 1.5); createTrees(s2b, 0.3, -1, 18, 3, 1.5);
+        createTrees(s2, 0.3, 1, 24, 3, 1); createTrees(s2, 0.32, 1, 24, 2, 1.25);
+        createTrees(s2, 0.2, -1, 28, 2, 1); createTrees(s2, 0.1, 1, 1, 1, 1.5);
+        createTrees(s3, 0.35, 1, 60, 8, 0.3); createTrees(s3, 0.3, -1, 60, 8, 0.3);
+        createTrees(s4, 0.32, 1, 30, 3, 0.2); createTrees(s4, 0.34, 1, 38, 6, 0.2);
+        createTrees(s4, 0.32, -1, 42, 5, 0.2); createTrees(s5, 0.18, 1, 40, 5, 0.15);
+        createTrees(s5, 0.16, 1, 80, 3, 0.15); createTrees(s5, 0.1, 1, 30, 5, 0.15);
+        createTrees(s6, 0.31, -1, 170, 4, 0.1); createTrees(s6, 0.3, -1, 120, 6, 0.1);
+        createTrees(s6, 0.22, -1, 120, 6, 0.1);
+
+        // Aurora Color Cycle
+        gsap.timeline({
+            repeat: -1, yoyo: true, defaults: { duration: 10, ease: 'none' },
+            onUpdate() {
+                const auroraColor1 = bodyStyle.getPropertyValue('--auroraColor1');
+                const bg = chroma("#FFFFFF").mix(auroraColor1, 0.4);
+                const bgColor = chroma(bg).mix("#000000", 0.7);
+                const colors = {
+                    "--bg": bg, "--bgColor": bgColor,
+                    "--bgColor90": bgColor.mix("#000000", 0.1), "--bgColor80": bgColor.mix("#000000", 0.2),
+                    "--bgColor70": bgColor.mix("#000000", 0.3), "--bgColor60": bgColor.mix("#000000", 0.4),
+                    "--bgColor50": bgColor.mix("#000000", 0.5), "--bgColor110": bgColor.mix("#FFFFFF", 0.1),
+                    "--bgColor120": bgColor.mix("#FFFFFF", 0.2), "--bgColor130": bgColor.mix("#FFFFFF", 0.3),
+                    "--bgColor140": bgColor.mix("#FFFFFF", 0.4), "--bgColor150": bgColor.mix("#FFFFFF", 0.5)
+                };
+                const update = {};
+                for (let k in colors) update[k] = `rgba(${colors[k].rgba()})`;
+                gsap.set("body", update);
+            }
+        })
+            .to("body", { "--auroraColor0": "rgb(0 0 255)", "--auroraColor1": "rgb(255 0 0)", "--auroraColor2": "rgb(0 255 0)" })
+            .to("body", { "--auroraColor0": "rgb(0 255 0)", "--auroraColor1": "rgb(0 0 255)", "--auroraColor2": "rgb(255 0 0)" })
+            .to("body", { "--auroraColor0": "rgb(255 0 0)", "--auroraColor1": "rgb(0 255 0)", "--auroraColor2": "rgb(0 0 255)" });
+
+        // Igloo Setup
+        const svg2IglooWrapper = select("#svg2IglooWrapper");
+        const land2Igloo = select("#land2Igloo");
+        const newIgloo = select("#svg2Igloo");
+        if (newIgloo && svg2IglooWrapper) {
+            newIgloo.style.display = "block";
+            svg2IglooWrapper.appendChild(newIgloo);
+            gsap.set(newIgloo, {
+                scale: 1,
+                motionPath: { path: land2Igloo, align: land2Igloo, alignOrigin: [0.5, 0.5], start: 0.5, end: 0.5, autoRotate: true }
+            });
         }
+
+        gsap.set("#gsapWrapper", { autoAlpha: 1 });
     }
 
     async initDiscord() {
         try {
-            this.debugLog("Discord SDK: Loading...");
             const module = await import("@discord/embedded-app-sdk");
             DiscordSDK = module.DiscordSDK;
 
@@ -375,7 +469,11 @@ class FarkleClient {
         });
 
         this.socket.on('game_state_update', (state) => {
-            this.updateGameState(state);
+            if (this.isRolling) {
+                this.pendingState = state;
+            } else {
+                this.updateGameState(state);
+            }
         });
 
         this.socket.on('game_start', (state) => {
@@ -385,8 +483,18 @@ class FarkleClient {
 
         this.socket.on('roll_result', (data) => {
             const diceValues = data.dice.map(d => d.value);
+            this.isRolling = true;
+            if (this.ui.diceContainer) this.ui.diceContainer.classList.add('rolling');
+
             this.dice3D.roll(diceValues).then(() => {
-                this.updateGameState(data.state);
+                this.isRolling = false;
+                if (this.ui.diceContainer) this.ui.diceContainer.classList.remove('rolling');
+
+                // Use the latest state we received during animation, or the one from the roll result
+                const finalState = this.pendingState || data.state;
+                this.pendingState = null;
+
+                this.updateGameState(finalState);
                 if (data.farkle) {
                     this.showFeedback("FARKLE!", "error");
                 }
@@ -602,34 +710,6 @@ class FarkleClient {
         // Unused now
         const chars = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
         return chars[val - 1] || val;
-    }
-
-    animateRoll(dice) {
-        return new Promise(resolve => {
-            this.ui.diceContainer.classList.add('rolling');
-
-            // Play sound if available? (Skipping for now)
-
-            // Show temporary rolling state
-            this.ui.diceContainer.innerHTML = '';
-            for (let i = 0; i < dice.length; i++) {
-                const die = document.createElement('div');
-                die.className = 'die rolling';
-                // Create random dots for visual noise during roll
-                for (let j = 0; j < 6; j++) {
-                    const pip = document.createElement('div');
-                    pip.className = 'pip';
-                    die.appendChild(pip);
-                }
-                die.style.animationDuration = '0.5s';
-                this.ui.diceContainer.appendChild(die);
-            }
-
-            setTimeout(() => {
-                this.ui.diceContainer.classList.remove('rolling');
-                resolve();
-            }, 600);
-        });
     }
 
     updateGameState(state) {
