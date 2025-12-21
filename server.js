@@ -40,7 +40,7 @@ class GameState {
     }
 
     addPlayer(id, name) {
-        if (this.players.length >= 5) return false;
+        if (this.players.length >= 10) return false;
         this.players.push({ id, name, score: 0, connected: true });
         return true;
     }
@@ -239,31 +239,41 @@ io.on('connection', (socket) => {
         socket.emit('room_list', rooms);
     });
 
-    socket.on('join_game', ({ roomCode, playerName }) => {
+    socket.on('join_game', () => {
+        let roomCode = ROOM_NAMES[0];
         let game = games.get(roomCode);
 
-        if (!game) {
-            socket.emit('error', 'Invalid Room');
+        // 1. Try to find a disconnected slot to reclaim
+        let disconnectedPlayer = game.players.find(p => !p.connected);
+        if (disconnectedPlayer) {
+            console.log(`[Server] Reclaiming ${disconnectedPlayer.name} for ${socket.id}`);
+            disconnectedPlayer.id = socket.id;
+            disconnectedPlayer.connected = true;
+
+            socket.join(roomCode);
+            socket.emit('joined', { playerId: socket.id, state: game.getState() });
+            io.to(roomCode).emit('game_state_update', game.getState());
+            io.emit('room_list', getRoomList());
             return;
         }
 
-        // Check if player already exists by Name
-        let existingPlayer = game.players.find(p => p.name === playerName);
-
-        if (existingPlayer) {
-            // Reconnect logic
-            console.log(`[Game ${roomCode}] Player ${playerName} reconnected.`);
-            existingPlayer.id = socket.id; // Update socket ID
-            existingPlayer.connected = true;
-        } else {
-            // New Player
-            if (game.players.length >= 5) {
-                // Check if we can take over a disconnected spot (optional, but 'Room Full' is safer)
-                socket.emit('error', 'Room Full');
-                return;
+        // 2. Otherwise, assign first available Player X name (1-10)
+        let name;
+        for (let i = 1; i <= 10; i++) {
+            let candidate = `Player ${i}`;
+            if (!game.players.some(p => p.name === candidate)) {
+                name = candidate;
+                break;
             }
-            game.addPlayer(socket.id, playerName);
         }
+
+        if (!name || game.players.length >= 10) {
+            socket.emit('error', 'Room Full');
+            return;
+        }
+
+        game.addPlayer(socket.id, name);
+        console.log(`[Server] Assigned ${name} to ${socket.id}`);
 
         socket.join(roomCode);
         socket.emit('joined', { playerId: socket.id, state: game.getState() });
@@ -432,7 +442,7 @@ function getRoomList() {
     return Array.from(games.values()).map(g => ({
         name: g.roomCode,
         count: g.players.filter(p => p.connected).length,
-        max: 5,
+        max: 10,
         status: g.gameStatus
     }));
 }

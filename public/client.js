@@ -135,8 +135,6 @@ class FarkleClient {
                 diceThemeSelect: document.getElementById('dice-theme-select'),
                 themeBtns: document.querySelectorAll('.theme-btn'),
                 threeCanvasContainer: document.getElementById('three-canvas-container'),
-                playerIdInput: document.getElementById('player-id-input'),
-                roomCodeInput: document.getElementById('room-code-input'),
                 startGameBtn: document.getElementById('start-game-btn')
             };
 
@@ -442,6 +440,7 @@ class FarkleClient {
 
         this.socket.on('joined', ({ playerId, state }) => {
             this.playerId = playerId;
+            this.roomCode = state.roomCode; // Save assigned room
             this.updateGameState(state);
             this.ui.setupModal.classList.add('hidden');
             this.showFeedback("Joined Room!", "success");
@@ -548,15 +547,8 @@ class FarkleClient {
     }
 
     joinGame() {
-        const id = this.ui.playerIdInput.value.trim() || '1';
-        const room = this.ui.roomCodeInput.value.trim() || 'room1';
-
-        // Using the requested name assignment: Player + ID
-        this.playerName = `Player ${id}`;
-        this.roomCode = room;
-
-        this.debugLog(`Joining room ${room} as ${this.playerName}`);
-        this.socket.emit('join_game', { roomCode: room, playerName: this.playerName });
+        this.debugLog(`Joining Game...`);
+        this.socket.emit('join_game');
     }
 
     canInteract() {
