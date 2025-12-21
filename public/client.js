@@ -528,7 +528,6 @@ class FarkleClient {
 
             if (room.count < room.max || (room.count >= room.max && room.status === 'waiting')) {
                 card.addEventListener('click', () => {
-                    this.ui.roomCodeInput.value = room.name;
                     this.joinRoom(room.name);
                 });
             } else {
@@ -540,10 +539,8 @@ class FarkleClient {
     }
 
     joinRoom(roomCode) {
-        const id = this.ui.playerIdInput.value.trim() || '1';
-        this.playerName = `Player ${id}`;
-        this.roomCode = roomCode;
-        this.socket.emit('join_game', { roomCode: roomCode, playerName: this.playerName });
+        this.debugLog(`Joining ${roomCode}...`);
+        this.socket.emit('join_game', { roomCode: roomCode });
     }
 
     joinGame() {

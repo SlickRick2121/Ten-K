@@ -239,14 +239,15 @@ io.on('connection', (socket) => {
         socket.emit('room_list', rooms);
     });
 
-    socket.on('join_game', () => {
-        let roomCode = ROOM_NAMES[0];
+    socket.on('join_game', (data) => {
+        const requestedRoom = data?.roomCode;
+        let roomCode = requestedRoom && ROOM_NAMES.includes(requestedRoom) ? requestedRoom : ROOM_NAMES[0];
         let game = games.get(roomCode);
 
         // 1. Try to find a disconnected slot to reclaim
         let disconnectedPlayer = game.players.find(p => !p.connected);
         if (disconnectedPlayer) {
-            console.log(`[Server] Reclaiming ${disconnectedPlayer.name} for ${socket.id}`);
+            console.log(`[Server] Reclaiming ${disconnectedPlayer.name} in ${roomCode} for ${socket.id}`);
             disconnectedPlayer.id = socket.id;
             disconnectedPlayer.connected = true;
 
@@ -273,7 +274,7 @@ io.on('connection', (socket) => {
         }
 
         game.addPlayer(socket.id, name);
-        console.log(`[Server] Assigned ${name} to ${socket.id}`);
+        console.log(`[Server] Assigned ${name} to ${socket.id} in ${roomCode}`);
 
         socket.join(roomCode);
         socket.emit('joined', { playerId: socket.id, state: game.getState() });
