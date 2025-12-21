@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Bungee&display=swap');
+
 :root {
     /* Color Palette - Vibrant Cyberpunk/Modern Arcade */
     --bg-dark: #090910;
@@ -101,7 +103,6 @@
     fill: var(--bgColor150);
 }
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Bungee&display=swap');
 
 * {
     box-sizing: border-box;
