@@ -138,6 +138,13 @@ class FarkleClient {
                 startGameBtn: document.getElementById('start-game-btn')
             };
 
+            // Hook up start button
+            if (this.ui.startGameBtn) {
+                this.ui.startGameBtn.addEventListener('click', () => {
+                    this.joinGame();
+                });
+            }
+
             this.playerName = null;
 
             this.dice3D = new Dice3DManager(this.ui.threeCanvasContainer);
@@ -407,6 +414,16 @@ class FarkleClient {
             this.debugLog(`Connected! ID: ${this.socket.id}`);
             this.showFeedback("Connected!", "success");
 
+            // Enable Button
+            if (this.ui.startGameBtn) {
+                this.ui.startGameBtn.textContent = "JOIN TABLE";
+                this.ui.startGameBtn.disabled = false;
+                this.ui.startGameBtn.style.opacity = "1";
+                this.ui.startGameBtn.style.cursor = "pointer";
+            }
+            const debugEl = document.getElementById('connection-debug');
+            if (debugEl) debugEl.textContent = "Connected to server.";
+
             // Explicitly request room list to avoid race conditions
             this.socket.emit('get_room_list');
 
@@ -420,10 +437,14 @@ class FarkleClient {
         this.socket.on('connect_error', (err) => {
             this.debugLog(`Connection Error: ${err.message}`);
             console.error("Socket Connection Error:", err);
+
             const container = document.getElementById('room-list-container');
             if (container && container.innerText.includes('Loading')) {
                 container.innerHTML = `<p style="color:var(--danger)">Connection Failed. <button class="btn secondary" onclick="location.reload()">Retry</button></p>`;
             }
+            const debugEl = document.getElementById('connection-debug');
+            if (debugEl) debugEl.textContent = `Connection Error: ${err.message}`;
+
             this.showFeedback("Connection Error!", "error");
         });
 
