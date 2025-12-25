@@ -639,91 +639,105 @@ class FarkleClient {
     renderPlayers() {
         if (!this.gameState || !this.gameState.players) return;
 
-        // Dynamic rendering
         const container = this.ui.playerZonesContainer;
         if (!container) return;
 
-        // Only rebuild if player count/names changed? For now, full rebuild is safer but maybe flashing?
-        // We'll trust browser optimization for now.
-        container.innerHTML = '';
+        const players = this.gameState.players;
+        const children = Array.from(container.children);
 
-        this.gameState.players.forEach((player, index) => {
-            // For lobby view: show all.
-            // For game view: show all.
+        // 1. Remove excess cards
+        while (container.children.length > players.length) {
+            container.removeChild(container.lastChild);
+        }
 
+        // 2. Update or Create cards
+        players.forEach((player, index) => {
+            let card = container.children[index];
             const isCurrent = this.gameState.currentPlayerIndex === index && this.gameState.gameStatus === 'playing';
 
-            const card = document.createElement('div');
-            card.className = `player-card ${isCurrent ? 'active' : ''}`;
-            card.style.minWidth = "150px";
-            if (!player.connected) card.style.opacity = "0.5";
+            if (!card) {
+                // Create new card structure
+                card = document.createElement('div');
+                card.className = 'player-card';
+                card.style.minWidth = "150px";
 
-            const info = document.createElement('div');
-            info.className = 'player-info';
+                const info = document.createElement('div');
+                info.className = 'player-info';
 
-            const name = document.createElement('span');
-            name.className = 'player-name';
-            name.textContent = player.name;
+                const name = document.createElement('span');
+                name.className = 'player-name';
 
-            info.appendChild(name);
+                info.appendChild(name);
 
-            const scoreDiv = document.createElement('div');
-            scoreDiv.className = 'total-score';
-            scoreDiv.textContent = player.score;
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'total-score';
 
-            // Round stats logic could be enhanced to show who just banked
+                card.appendChild(info);
+                card.appendChild(scoreDiv);
 
-            card.appendChild(info);
-            card.appendChild(scoreDiv);
+                container.appendChild(card);
+            }
 
-            container.appendChild(card);
+            // Update Content safely
+            const nameEl = card.querySelector('.player-name');
+            const scoreEl = card.querySelector('.total-score');
+
+            if (nameEl && nameEl.textContent !== player.name) nameEl.textContent = player.name;
+            if (scoreEl && scoreEl.textContent != player.score) scoreEl.textContent = player.score;
+
+            // Update Classes
+            const isActive = card.classList.contains('active');
+            if (isCurrent && !isActive) card.classList.add('active');
+            if (!isCurrent && isActive) card.classList.remove('active');
+
+            // Update Opacity
+            const targetOpacity = player.connected ? "1" : "0.5";
+            if (card.style.opacity !== targetOpacity) card.style.opacity = targetOpacity;
         });
     }
 
     renderDice(dice) {
-        this.ui.diceContainer.innerHTML = '';
+        if (!this.ui.diceContainer) return;
+
+        const container = this.ui.diceContainer;
+
+        // 1. Remove excess dice
+        while (container.children.length > dice.length) {
+            container.removeChild(container.lastChild);
+        }
+
+        // 2. Update or Create dice
         dice.forEach((d, index) => {
-            const die = document.createElement('div');
-            die.className = `die ${d.selected ? 'selected' : ''}`;
-            die.dataset.id = d.id;
-            die.dataset.value = d.value;
+            let die = container.children[index];
 
-            // Create pips for CSS dice
-            for (let i = 0; i < 6; i++) { // Always create potential pips, handled by CSS visibility or grid logic
-                const pip = document.createElement('div');
-                pip.className = 'pip';
-                die.appendChild(pip);
+            if (!die) {
+                die = document.createElement('div');
+                die.className = 'die';
+                container.appendChild(die);
             }
 
-            // Actually, my CSS uses grid areas which means I need correct number of pips or fixed 6?
-            // The CSS I wrote uses nth-child selectors up to 6 for value 6.
-            // Value 1 uses nth-child(1). Value 6 uses 6 pips.
-            // So simply creating d.value pips works perfectly with that CSS logic.
-            // Wait, for value 5, it used nth-child(5).
-            // So just creating 'd.value' amount of pips is correct.
-            /*
-            die.innerHTML = ''; // Clear
-            for(let i=0; i<d.value; i++){
-               const pip = document.createElement('div');
-               pip.className = 'pip';
-               die.appendChild(pip);
-            }
-            */
-            // Re-evaluating CSS logic:
-            // .die[data-value="1"] .pip:nth-child(1) ...
-            // If I have 1 pip, it is nth-child(1).
-            // Perfect.
-            die.innerHTML = '';
-            for (let i = 0; i < d.value; i++) {
-                const pip = document.createElement('div');
-                pip.className = 'pip';
-                die.appendChild(pip);
-            }
+            // Update Class for Selection
+            const isSelected = d.selected;
+            if (isSelected && !die.classList.contains('selected')) die.classList.add('selected');
+            if (!isSelected && die.classList.contains('selected')) die.classList.remove('selected');
 
-            // Animation staggered entry
-            die.style.animationDelay = `${index * 50}ms`;
+            // Update Identifiers
+            if (die.dataset.id !== d.id) die.dataset.id = d.id;
 
-            this.ui.diceContainer.appendChild(die);
+            // Update Value and Pips only if changed
+            if (die.dataset.value != d.value) {
+                die.dataset.value = d.value;
+                die.innerHTML = '';
+                for (let i = 0; i < d.value; i++) {
+                    const pip = document.createElement('div');
+                    pip.className = 'pip';
+                    die.appendChild(pip);
+                }
+                // Reset animation only on value update/creation
+                die.style.animation = 'none';
+                die.offsetHeight; /* trigger reflow */
+                die.style.animation = null;
+            }
         });
     }
 
@@ -734,7 +748,7 @@ class FarkleClient {
     }
 
     updateGameState(state) {
-        console.log("State Update:", state);
+        // console.log("State Update:", state);
         this.gameState = state;
         this.renderPlayers();
         this.renderControls();
@@ -746,7 +760,7 @@ class FarkleClient {
             const myPlayer = this.gameState.players.find(p => p.id === this.socket.id);
             if (myPlayer) {
                 const opponent = this.gameState.players.find(p => p.id !== this.socket.id);
-                const scoreText = `Score: ${myPlayer.score} vs ${opponent ? opponent.score : 0}`;
+                const scoreText = `Score: ${myPlayer.score}`;
                 const roundText = `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`;
                 this.updateDiscordPresence(scoreText, roundText);
             }
