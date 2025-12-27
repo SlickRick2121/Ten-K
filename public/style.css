@@ -642,6 +642,21 @@ body {
     text-shadow: 0 0 30px var(--success);
 }
 
+.feedback-message.hot-dice {
+    font-family: 'Bungee', cursive;
+    /* Distinct font */
+    font-size: 6rem;
+    color: #fff700;
+    /* Yellow */
+    -webkit-text-stroke: 3px #ff4800;
+    /* Orange/Red stroke */
+    text-shadow:
+        0 0 20px #ff0000,
+        0 0 40px #ffae00;
+    transform: translate(-50%, -50%) rotate(-5deg) !important;
+    /* Tilt it */
+}
+
 /* --- Controls Panel --- */
 .controls {
     background: var(--bg-panel);
@@ -688,24 +703,24 @@ body {
     min-width: 160px;
     height: 60px;
     padding: 0 30px;
-    
+
     font-family: 'Outfit', sans-serif;
     font-weight: bold;
     font-size: 18px;
     text-transform: uppercase;
     letter-spacing: 2px;
     color: #fff;
-    
+
     border-radius: 30px;
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.1);
-    
+
     overflow: hidden;
     transition: all 0.5s ease;
     cursor: pointer;
     z-index: 1;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .btn::before {
@@ -729,7 +744,7 @@ body {
     transform: translateY(-2px);
     border-color: rgba(255, 255, 255, 0.3);
     box-shadow: 0 0 20px rgba(255, 255, 255, 0.3),
-                0 0 40px rgba(255, 255, 255, 0.1);
+        0 0 40px rgba(255, 255, 255, 0.1);
 }
 
 .btn:active {

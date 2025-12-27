@@ -146,7 +146,7 @@ function isScoringSelection(dice, rules = DEFAULT_RULES) {
 }
 // --- INLINED RULES END ---
 
-import { DiscordSDK } from "/libs/@discord/embedded-app-sdk/output/index.mjs";
+// Discord SDK integration refactored to use dynamic import
 
 // Global reference
 const DISCORD_CLIENT_ID = '1317075677927768074';
@@ -251,9 +251,15 @@ class FarkleClient {
 
             this.debugLog("Modules initialized");
 
-            // Init Discord THEN Socket
-            this.initDiscord().finally(() => {
-                this.initSocket();
+            // Init Discord with Timeout THEN Socket
+            const discordPromise = this.initDiscord();
+            const timeoutPromise = new Promise(resolve => setTimeout(resolve, 3000));
+
+            Promise.race([discordPromise, timeoutPromise]).finally(() => {
+                // Ensure socket always inits even if discord hangs or fails
+                if (!this.socket) {
+                    this.initSocket();
+                }
             });
 
         } catch (err) {
@@ -263,6 +269,7 @@ class FarkleClient {
     }
 
     initSocket() {
+        if (this.socket) return; // Prevent double init
         if (typeof io === 'undefined') {
             this.debugLog("CRITICAL: Socket.io (io) is not defined!");
             return;
@@ -291,6 +298,17 @@ class FarkleClient {
             if (window.self === window.top && !window.location.search.includes('frame_id')) {
                 this.debugLog("Not in Discord (Standalone). Using Random Name.");
                 return;
+            }
+
+            this.debugLog("Loading Discord SDK...");
+            let DiscordSDK;
+            try {
+                // Dynamic Import
+                const module = await import("/libs/@discord/embedded-app-sdk/output/index.mjs");
+                DiscordSDK = module.DiscordSDK;
+            } catch (importErr) {
+                this.debugLog(`SDK Import Failed: ${importErr.message}`);
+                return; // Fallback to Player N
             }
 
             this.debugLog("Initializing Discord SDK...");
@@ -468,7 +486,7 @@ class FarkleClient {
 
                 this.updateGameState(finalState);
                 if (data.hotDice) {
-                    this.showFeedback("HOT DICE!", "success");
+                    this.showFeedback("HOT DICE!", "hot-dice");
                 }
             });
         });
@@ -891,10 +909,10 @@ class FarkleClient {
     showFeedback(text, type = "info") {
         if (!this.ui.feedback) return;
         this.ui.feedback.textContent = text;
-        this.ui.feedback.classList.remove('hidden');
+        this.ui.feedback.classList.remove('hidden', 'error', 'success', 'hot-dice');
         if (type === 'error') this.ui.feedback.classList.add('error');
         else if (type === 'success') this.ui.feedback.classList.add('success');
-        else this.ui.feedback.classList.remove('error', 'success');
+        else if (type === 'hot-dice') this.ui.feedback.classList.add('hot-dice');
         setTimeout(() => {
             this.ui.feedback.classList.add('hidden');
         }, 2000);
