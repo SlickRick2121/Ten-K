@@ -392,6 +392,8 @@ class FarkleClient {
                 const id = dieEl.dataset.id;
                 dieEl.classList.toggle('selected');
                 this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
+                // Trigger UI update immediately for responsiveness
+                this.renderControls();
             }
         });
 
@@ -401,6 +403,43 @@ class FarkleClient {
         this.ui.restartBtn.addEventListener('click', () => {
             this.socket.emit('restart', { roomCode: this.roomCode });
             this.ui.gameOverModal.classList.add('hidden');
+        });
+
+        // --- Hotkeys ---
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.repeat) return;
+            if (!this.canInteract()) return;
+
+            // R or Space = Roll
+            if (e.code === 'KeyR' || e.code === 'Space') {
+                e.preventDefault();
+                if (this.ui.rollBtn && !this.ui.rollBtn.disabled && this.ui.rollBtn.offsetParent) {
+                    this.ui.rollBtn.click();
+                }
+            }
+
+            // B or Enter = Bank
+            if (e.code === 'KeyB' || e.code === 'Enter') {
+                e.preventDefault();
+                if (this.ui.bankBtn && !this.ui.bankBtn.disabled && this.ui.bankBtn.offsetParent) {
+                    this.ui.bankBtn.click();
+                }
+            }
+
+            // 1-6 = Select Dice
+            if (e.key >= '1' && e.key <= '6') {
+                const idx = parseInt(e.key) - 1;
+                if (this.ui.diceContainer && this.ui.diceContainer.children[idx]) {
+                    const dieEl = this.ui.diceContainer.children[idx];
+                    if (dieEl.classList.contains('die')) {
+                        const id = dieEl.dataset.id;
+                        dieEl.classList.toggle('selected');
+                        this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
+                        this.renderControls(); // Recalculate score display immediately
+                    }
+                }
+            }
         });
     }
 
@@ -929,6 +968,11 @@ class Dice3DManager {
         this.palette = ["#EAA14D", "#E05A47", "#4D9BEA", "#5FB376", "#D869A8", "#F2C94C", "#9B51E0", "#FFFFFF"];
         this.faceNormals = [new THREE.Vector3(1, 0, 0), new THREE.Vector3(-1, 0, 0), new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, -1)];
         this.faceValues = [1, 6, 2, 5, 3, 4];
+
+        // --- Cache System ---
+        this.sharedGeometry = new RoundedBoxGeometry(2.2, 2.2, 2.2, 4, 0.4);
+        this.materialCache = new Map(); // Stores material arrays per color
+
         this.init();
     }
     setSpeed(isSpeed) {
@@ -987,7 +1031,7 @@ class Dice3DManager {
         });
     }
     createDiceTexture(number, color = "#ffffff") {
-        const size = 256;
+        const size = 256; // Keep resolution high
         const canvas = document.createElement('canvas');
         canvas.width = size; canvas.height = size;
         const ctx = canvas.getContext('2d');
@@ -1005,6 +1049,29 @@ class Dice3DManager {
         else if (number === 6) { dot(q1, q1, d); dot(q3, q1, d); dot(q1, c, d); dot(q3, c, d); dot(q1, q3, d); dot(q3, q3, d); }
         return new THREE.CanvasTexture(canvas);
     }
+
+    getMaterialsForColor(color) {
+        if (this.materialCache.has(color)) {
+            return this.materialCache.get(color);
+        }
+
+        const materials = [];
+        for (let j = 1; j <= 6; j++) {
+            materials.push(new THREE.MeshStandardMaterial({
+                map: this.createDiceTexture(j, color)
+            }));
+        }
+        // Map faces to cube sides: [Right, Left, Top, Bottom, Front, Back]
+        // Standard UV mapping for box usually maps specific faces.
+        // Based on previous code: materials[0], materials[5], etc.
+        // indices: 1, 6, 2, 5, 3, 4
+        // materials array is 0-indexed (so materials[0] is face 1)
+        const matArray = [materials[0], materials[5], materials[1], materials[4], materials[2], materials[3]];
+
+        this.materialCache.set(color, matArray);
+        return matArray;
+    }
+
     roll(values) {
         return new Promise(resolve => {
             this.targetValues = values;
@@ -1020,20 +1087,25 @@ class Dice3DManager {
         });
     }
     clearDice() {
-        this.diceObjects.forEach(obj => { this.scene.remove(obj.mesh); this.world.removeBody(obj.body); });
+        this.diceObjects.forEach(obj => {
+            this.scene.remove(obj.mesh);
+            this.world.removeBody(obj.body);
+            // Do NOT dispose geometry/materials here as they are cached
+        });
         this.diceObjects = [];
     }
     spawnDice(values) {
         const theme = document.body.getAttribute('data-dice-theme') || 'classic';
-        const geom = new RoundedBoxGeometry(2.2, 2.2, 2.2, 4, 0.4);
+        const geom = this.sharedGeometry;
+
         values.forEach((val, i) => {
             let diceColor = "#ffffff";
             if (theme === 'classic') diceColor = this.palette[i % this.palette.length];
             else if (theme === 'gold') diceColor = "#ffd700";
             else if (theme === 'dark') diceColor = "#111111";
-            const materials = [];
-            for (let j = 1; j <= 6; j++) materials.push(new THREE.MeshStandardMaterial({ map: this.createDiceTexture(j, diceColor) }));
-            const matArray = [materials[0], materials[5], materials[1], materials[4], materials[2], materials[3]];
+
+            const matArray = this.getMaterialsForColor(diceColor);
+
             const mesh = new THREE.Mesh(geom, matArray);
             this.scene.add(mesh);
             const body = new CANNON.Body({ mass: 5, shape: new CANNON.Box(new CANNON.Vec3(1.1, 1.1, 1.1)), material: this.diceMat, position: new CANNON.Vec3((Math.random() - 0.5) * 5, 15 + i * 2, (Math.random() - 0.5) * 5) });

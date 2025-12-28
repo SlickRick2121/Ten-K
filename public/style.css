@@ -642,6 +642,14 @@ body {
     text-shadow: 0 0 30px var(--success);
 }
 
+.feedback-message.error {
+    color: var(--danger);
+    font-size: 6rem;
+    -webkit-text-stroke: 2px #fff;
+    text-shadow: 0 0 30px var(--danger);
+    z-index: 2000;
+}
+
 .feedback-message.hot-dice {
     font-family: 'Bungee', cursive;
     /* Distinct font */
