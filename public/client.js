@@ -212,10 +212,17 @@ class FarkleClient {
                 restartBtn: document.getElementById('restart-btn'),
                 settingsBtn: document.getElementById('settings-btn'),
                 settingsModal: document.getElementById('settings-modal'),
+                leaveBtn: document.getElementById('leave-btn'),
                 diceThemeSelect: document.getElementById('dice-theme-select'),
                 themeBtns: document.querySelectorAll('.theme-btn'),
                 threeCanvasContainer: document.getElementById('three-canvas-container'),
-                startGameBtn: document.getElementById('start-game-btn')
+                startGameBtn: document.getElementById('start-game-btn'),
+                chatPanel: document.getElementById('chat-panel'),
+                chatToggleBtn: document.getElementById('chat-toggle-btn'),
+                chatCloseBtn: document.getElementById('chat-close-btn'),
+                chatInput: document.getElementById('chat-input'),
+                chatSendBtn: document.getElementById('chat-send-btn'),
+                chatMessages: document.getElementById('chat-messages')
             };
 
             // Hook up start button
@@ -270,748 +277,860 @@ class FarkleClient {
             });
 
 
+        } catch (err) {
+            this.debugLog("Init Error: " + err.message);
+            console.error("FarkleClient Init Error:", err);
         }
+    }
 
     // --- Discord Integration ---
     async initDiscord() {
-            try {
-                // Check if running in iframe (Discord env) - simplistic check
-                if (window.self === window.top && !window.location.search.includes('frame_id')) {
-                    this.debugLog("Not in Discord (Standalone). Using Random Name.");
-                    return;
-                }
-
-                this.debugLog("Loading Discord SDK...");
-                let DiscordSDK;
-                try {
-                    // Dynamic Import
-                    const module = await import("/libs/@discord/embedded-app-sdk/output/index.mjs");
-                    DiscordSDK = module.DiscordSDK;
-                } catch (importErr) {
-                    this.debugLog(`SDK Import Failed: ${importErr.message}`);
-                    return; // Fallback to Player N
-                }
-
-                this.debugLog("Initializing Discord SDK...");
-                this.discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
-
-                await this.discordSdk.ready();
-                this.debugLog("Discord SDK Ready");
-
-                // Client-Side Auth Flow (Implicit Grant attempt)
-                // Use 'token' response_type to get access_token directly (likely requires Implicit Grant enabled in Dev Portal)
-                const { access_token } = await this.discordSdk.commands.authorize({
-                    client_id: DISCORD_CLIENT_ID,
-                    response_type: "token",
-                    state: "",
-                    prompt: "none",
-                    scope: ["identify", "guilds"]
-                });
-
-                // Authenticate with the token
-                const response = await this.discordSdk.commands.authenticate({
-                    access_token: access_token
-                });
-
-                if (response && response.user) {
-                    this.playerName = response.user.global_name || response.user.username;
-                    localStorage.setItem('farkle-username', this.playerName); // Cache it
-                    this.debugLog(`Authenticated as ${this.playerName}`);
-                }
-
-            } catch (err) {
-                console.error("Discord Auth Error:", err);
-                this.debugLog(`Discord Auth Failed: ${err.message} - Using Default Name`);
-                // Fallback is already set in constructor
+        try {
+            // Check if running in iframe (Discord env) - simplistic check
+            if (window.self === window.top && !window.location.search.includes('frame_id')) {
+                this.debugLog("Not in Discord (Standalone). Using Random Name.");
+                return;
             }
+
+            this.debugLog("Loading Discord SDK...");
+            let DiscordSDK;
+            try {
+                // Dynamic Import
+                const module = await import("/libs/@discord/embedded-app-sdk/output/index.mjs");
+                DiscordSDK = module.DiscordSDK;
+            } catch (importErr) {
+                this.debugLog(`SDK Import Failed: ${importErr.message}`);
+                return; // Fallback to Player N
+            }
+
+            this.debugLog("Initializing Discord SDK...");
+            this.discordSdk = new DiscordSDK(DISCORD_CLIENT_ID);
+
+            await this.discordSdk.ready();
+            this.debugLog("Discord SDK Ready");
+
+            // Client-Side Auth Flow (Implicit Grant attempt)
+            // Use 'token' response_type to get access_token directly
+            const { access_token } = await this.discordSdk.commands.authorize({
+                client_id: DISCORD_CLIENT_ID,
+                response_type: "token",
+                state: "",
+                prompt: "none",
+                scope: ["identify", "guilds", "rpc.activities.write"]
+            });
+
+            // Authenticate with the token
+            const response = await this.discordSdk.commands.authenticate({
+                access_token: access_token
+            });
+
+            if (response && response.user) {
+                this.playerName = response.user.global_name || response.user.username;
+                localStorage.setItem('farkle-username', this.playerName);
+                this.debugLog(`Authenticated as ${this.playerName}`);
+            }
+
+        } catch (err) {
+            console.error("Discord Auth Error:", err);
+            this.debugLog(`Discord Auth Failed: ${err.message} - Using Default Name`);
+            // Fallback is already set in constructor
         }
+    }
 
     async updateDiscordPresence(details, state) {
-            if (!this.discordSdk) return;
-            try {
-                await this.discordSdk.commands.setActivity({
-                    activity: {
-                        details: details,
-                        state: state,
-                        assets: {
-                            large_image: "farkle_icon",
-                            large_text: "Farkle"
-                        }
+        if (!this.discordSdk) return;
+        try {
+            await this.discordSdk.commands.setActivity({
+                activity: {
+                    details: details,
+                    state: state,
+                    assets: {
+                        large_image: "farkle_icon",
+                        large_text: "Farkle"
                     }
-                });
-            } catch (e) {
-            }
+                }
+            });
+        } catch (e) {
+        }
+    }
+
+    initSettings() {
+        // Theme Buttons
+        if (this.ui.settingsBtn) {
+            this.ui.settingsBtn.addEventListener('click', () => {
+                this.ui.settingsModal.classList.remove('hidden');
+            });
+        }
+        if (this.ui.settingsModal) {
+            this.ui.settingsModal.querySelector('.close-modal').addEventListener('click', () => {
+                this.ui.settingsModal.classList.add('hidden');
+            });
         }
 
-        initSettings() {
-            // Theme Buttons
-            if (this.ui.settingsBtn) {
-                this.ui.settingsBtn.addEventListener('click', () => {
-                    this.ui.settingsModal.classList.remove('hidden');
-                });
-            }
-            if (this.ui.settingsModal) {
-                this.ui.settingsModal.querySelector('.close-modal').addEventListener('click', () => {
-                    this.ui.settingsModal.classList.add('hidden');
-                });
-            }
+        // Color Themes
+        const themeBtns = document.querySelectorAll('.theme-btn');
+        themeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const theme = btn.dataset.theme;
+                let color = '#0f3d24'; // default green
+                if (theme === 'blue') color = '#1e3a8a';
+                if (theme === 'red') color = '#7f1d1d';
+                if (theme === 'purple') color = '#581c87';
 
-            // Color Themes
-            const themeBtns = document.querySelectorAll('.theme-btn');
-            themeBtns.forEach(btn => {
-                btn.addEventListener('click', () => {
-                    const theme = btn.dataset.theme;
-                    let color = '#0f3d24'; // default green
-                    if (theme === 'blue') color = '#1e3a8a';
-                    if (theme === 'red') color = '#7f1d1d';
-                    if (theme === 'purple') color = '#581c87';
-
-                    document.body.style.setProperty('--bg-panel', this.styleHexToRgba(color, 0.75));
-                    document.body.style.setProperty('--bg-panel-solid', color);
-                });
+                document.body.style.setProperty('--bg-panel', this.styleHexToRgba(color, 0.75));
+                document.body.style.setProperty('--bg-panel-solid', color);
             });
+        });
 
-            // Dice Themes
-            const diceSelect = document.getElementById('dice-theme-select');
-            if (diceSelect) {
-                const savedTheme = localStorage.getItem('farkle-dice-theme') || 'classic';
-                diceSelect.value = savedTheme;
-                document.body.setAttribute('data-dice-theme', savedTheme);
+        // Dice Themes
+        const diceSelect = document.getElementById('dice-theme-select');
+        if (diceSelect) {
+            const savedTheme = localStorage.getItem('farkle-dice-theme') || 'classic';
+            diceSelect.value = savedTheme;
+            document.body.setAttribute('data-dice-theme', savedTheme);
+            if (this.dice3D) this.dice3D.materialCache.clear();
+
+            diceSelect.addEventListener('change', (e) => {
+                const val = e.target.value;
+                document.body.setAttribute('data-dice-theme', val);
+                localStorage.setItem('farkle-dice-theme', val);
                 if (this.dice3D) this.dice3D.materialCache.clear();
+            });
+        }
+    }
 
-                diceSelect.addEventListener('change', (e) => {
-                    const val = e.target.value;
-                    document.body.setAttribute('data-dice-theme', val);
-                    localStorage.setItem('farkle-dice-theme', val);
-                    if (this.dice3D) this.dice3D.materialCache.clear();
-                });
+    styleHexToRgba(hex, alpha) {
+        const r = parseInt(hex.slice(1, 3), 16);
+        const g = parseInt(hex.slice(3, 5), 16);
+        const b = parseInt(hex.slice(5, 7), 16);
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    initSocket() {
+        if (this.socket) return;
+        if (typeof io === 'undefined') {
+            this.debugLog("CRITICAL: Socket.io missing!");
+            return;
+        }
+        this.debugLog("Connecting to Socket...");
+        this.socket = io({
+            reconnectionAttempts: 10,
+            auth: { name: this.playerName }
+        });
+        this.initSocketEvents();
+    }
+
+    initListeners() {
+        this.ui.rollBtn.addEventListener('click', () => {
+            if (this.canInteract()) {
+                const selectedIds = Array.from(document.querySelectorAll('.die.selected'))
+                    .map(el => el.dataset.id)
+                    .filter(id => id);
+                this.socket.emit('roll', { roomCode: this.roomCode, confirmedSelections: selectedIds, useHighStakes: false });
             }
-        }
+        });
 
-        styleHexToRgba(hex, alpha) {
-            const r = parseInt(hex.slice(1, 3), 16);
-            const g = parseInt(hex.slice(3, 5), 16);
-            const b = parseInt(hex.slice(5, 7), 16);
-            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        }
-
-        initSocket() {
-            if (this.socket) return;
-            if (typeof io === 'undefined') {
-                this.debugLog("CRITICAL: Socket.io missing!");
-                return;
+        this.ui.bankBtn.addEventListener('click', () => {
+            if (this.canInteract()) {
+                const selectedIds = Array.from(document.querySelectorAll('.die.selected'))
+                    .map(el => el.dataset.id)
+                    .filter(id => id);
+                this.socket.emit('bank', { roomCode: this.roomCode, confirmedSelections: selectedIds });
             }
-            this.debugLog("Connecting to Socket...");
-            this.socket = io({
-                reconnectionAttempts: 10,
-                auth: { name: this.playerName }
-            });
-            this.initSocketEvents();
-        }
+        });
 
-        initListeners() {
-            this.ui.rollBtn.addEventListener('click', () => {
-                if (this.canInteract()) {
-                    const selectedIds = Array.from(document.querySelectorAll('.die.selected'))
-                        .map(el => el.dataset.id)
-                        .filter(id => id);
-                    this.socket.emit('roll', { roomCode: this.roomCode, confirmedSelections: selectedIds, useHighStakes: false });
-                }
-            });
-
-            this.ui.bankBtn.addEventListener('click', () => {
-                if (this.canInteract()) {
-                    const selectedIds = Array.from(document.querySelectorAll('.die.selected'))
-                        .map(el => el.dataset.id)
-                        .filter(id => id);
-                    this.socket.emit('bank', { roomCode: this.roomCode, confirmedSelections: selectedIds });
-                }
-            });
-
-            this.ui.diceContainer.addEventListener('click', (e) => {
-                const dieEl = e.target.closest('.die');
-                if (dieEl && this.canInteract()) {
-                    const id = dieEl.dataset.id;
-                    dieEl.classList.toggle('selected');
-                    this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
-                    // Trigger UI update immediately for responsiveness
-                    this.renderControls();
-                }
-            });
-
-            this.ui.rulesBtn.addEventListener('click', () => this.ui.rulesModal.classList.remove('hidden'));
-            this.ui.rulesModal.querySelector('.close-modal').addEventListener('click', () => this.ui.rulesModal.classList.add('hidden'));
-
-            this.ui.restartBtn.addEventListener('click', () => {
-                this.socket.emit('restart', { roomCode: this.roomCode });
-                this.ui.gameOverModal.classList.add('hidden');
-            });
-
-            // --- Hotkeys ---
-            document.addEventListener('keydown', (e) => {
-                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-                if (e.repeat) return;
-                if (!this.canInteract()) return;
-
-                // R or Space = Roll
-                if (e.code === 'KeyR' || e.code === 'Space') {
-                    e.preventDefault();
-                    if (this.ui.rollBtn && !this.ui.rollBtn.disabled && this.ui.rollBtn.offsetParent) {
-                        this.ui.rollBtn.click();
-                    }
-                }
-
-                // B or Enter = Bank
-                if (e.code === 'KeyB' || e.code === 'Enter') {
-                    e.preventDefault();
-                    if (this.ui.bankBtn && !this.ui.bankBtn.disabled && this.ui.bankBtn.offsetParent) {
-                        this.ui.bankBtn.click();
-                    }
-                }
-
-                // 1-6 = Select Dice
-                if (e.key >= '1' && e.key <= '6') {
-                    const idx = parseInt(e.key) - 1;
-                    if (this.ui.diceContainer && this.ui.diceContainer.children[idx]) {
-                        const dieEl = this.ui.diceContainer.children[idx];
-                        if (dieEl.classList.contains('die')) {
-                            const id = dieEl.dataset.id;
-                            dieEl.classList.toggle('selected');
-                            this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
-                            this.renderControls(); // Recalculate score display immediately
-                        }
-                    }
-                }
-            });
-        }
-
-        initSocketEvents() {
-            this.socket.on('connect', () => {
-                this.debugLog(`Connected!`);
-                this.showFeedback("Connected!", "success");
-
-                const modeSelection = document.getElementById('mode-selection');
-                const roomList = document.getElementById('room-list-container');
-                const loadMsg = document.getElementById('connection-debug');
-                if (loadMsg) loadMsg.style.display = 'none';
-
-                if (!this.roomCode) {
-                    modeSelection.style.display = 'block';
-                }
-
-                if (this.roomCode) {
-                    this.socket.emit('join_game', { roomCode: this.roomCode, reconnectToken: this.reconnectToken, name: this.playerName });
-                }
-            });
-
-            this.socket.on('connect_error', (err) => {
-                this.debugLog(`Connection Error: ${err.message}`);
-                this.showFeedback("Connection Error!", "error");
-            });
-
-            this.socket.on('room_list', (rooms) => {
-                this.renderRoomList(rooms);
-            });
-
-            this.socket.on('disconnect', (reason) => {
-                this.debugLog(`Disconnected: ${reason}`);
-                this.showFeedback("Connection Lost! Reconnecting...", "error");
-            });
-
-            this.socket.on('joined', ({ playerId, state, isSpectator }) => {
-                this.playerId = playerId;
-                this.roomCode = state.roomCode;
-                this.isSpectator = isSpectator || false;
-
-                this.updateGameState(state);
-                this.ui.setupModal.classList.add('hidden');
-
-                if (this.isSpectator) this.showFeedback("Joined as Spectator", "info");
-                else this.showFeedback("Joined Room!", "success");
-
+        this.ui.diceContainer.addEventListener('click', (e) => {
+            const dieEl = e.target.closest('.die');
+            if (dieEl && this.canInteract()) {
+                const id = dieEl.dataset.id;
+                dieEl.classList.toggle('selected');
+                this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
+                // Trigger UI update immediately for responsiveness
                 this.renderControls();
-            });
+            }
+        });
 
-            this.socket.on('game_state_update', (state) => {
-                if (this.isRolling) {
-                    this.pendingState = state;
-                } else {
-                    this.updateGameState(state);
-                }
-            });
+        this.ui.rulesBtn.addEventListener('click', () => this.ui.rulesModal.classList.remove('hidden'));
+        this.ui.rulesModal.querySelector('.close-modal').addEventListener('click', () => this.ui.rulesModal.classList.add('hidden'));
 
-            this.socket.on('game_start', (state) => {
-                this.updateGameState(state);
-                this.showFeedback("Game Started!", "success");
-            });
+        this.ui.restartBtn.addEventListener('click', () => {
+            this.socket.emit('restart', { roomCode: this.roomCode });
+            this.ui.gameOverModal.classList.add('hidden');
+        });
 
-            this.socket.on('roll_result', (data) => {
-                const diceValues = data.dice.map(d => d.value);
-                this.isRolling = true;
-                if (this.ui.diceContainer) this.ui.diceContainer.classList.add('rolling');
-
-                this.dice3D.roll(diceValues).then(async () => {
-                    if (this.ui.diceContainer) this.ui.diceContainer.classList.remove('rolling');
-
-                    if (data.farkle) {
-                        this.showFeedback("FARKLE!", "error");
-                        // Buffer delay: maintain isRolling=true to catch incoming state updates in pendingState
-                        const delay = this.isSpeedMode ? 800 : 2000;
-                        await new Promise(r => setTimeout(r, delay));
-                    }
-
-                    this.isRolling = false;
-
-                    const finalState = this.pendingState || data.state;
-                    this.pendingState = null;
-
-                    this.updateGameState(finalState);
-                    if (data.hotDice) {
-                        this.showFeedback("HOT DICE!", "hot-dice");
-                    }
-                });
-            });
-
-            this.socket.on('error', (msg) => {
-                this.showFeedback(msg, "error");
+        if (this.ui.leaveBtn) {
+            this.ui.leaveBtn.addEventListener('click', () => {
+                this.leaveGame();
             });
         }
 
-        renderRoomList(allRooms) {
-            if (!Array.isArray(allRooms)) return;
-            const container = document.getElementById('room-list-container');
-            if (!container) return;
+        // Chat Listeners
+        if (this.ui.chatToggleBtn) {
+            this.ui.chatToggleBtn.addEventListener('click', () => {
+                this.ui.chatPanel.classList.toggle('hidden');
+                if (!this.ui.chatPanel.classList.contains('hidden')) {
+                    this.ui.chatInput.focus();
+                }
+            });
+        }
+        if (this.ui.chatCloseBtn) {
+            this.ui.chatCloseBtn.addEventListener('click', () => {
+                this.ui.chatPanel.classList.add('hidden');
+            });
+        }
+        if (this.ui.chatSendBtn) {
+            this.ui.chatSendBtn.addEventListener('click', () => this.sendChat());
+        }
+        if (this.ui.chatInput) {
+            this.ui.chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.sendChat();
+            });
+        }
 
-            // Filter rooms based on current mode
-            const targetCategory = this.isSpeedMode ? 'speed' : 'casual';
-            const rooms = allRooms.filter(r => r.category === targetCategory);
+        // --- Hotkeys ---
+        document.addEventListener('keydown', (e) => {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+            if (e.repeat) return;
+            if (!this.canInteract()) return;
 
-            // Re-create container structure to prevent duplicates but keep back button logic
-            container.innerHTML = '';
-
-            const backRow = document.createElement('div');
-            backRow.style.gridColumn = "1/-1";
-            backRow.style.marginBottom = "10px";
-            const backBtn = document.createElement('button');
-            backBtn.className = 'btn secondary small';
-            backBtn.textContent = '← Back to Modes';
-            backBtn.onclick = () => {
-                container.style.display = 'none';
-                document.getElementById('mode-selection').style.display = 'block';
-            };
-            backRow.appendChild(backBtn);
-            container.appendChild(backRow);
-
-            if (rooms.length === 0) {
-                const msg = document.createElement('p');
-                msg.style.cssText = 'color:var(--text-muted); padding: 1rem; text-align: center; font-size: 0.8rem;';
-                msg.textContent = 'No active tables for this mode.';
-                container.appendChild(msg);
-                return;
+            // R or Space = Roll
+            if (e.code === 'KeyR' || e.code === 'Space') {
+                e.preventDefault();
+                if (this.ui.rollBtn && !this.ui.rollBtn.disabled && this.ui.rollBtn.offsetParent) {
+                    this.ui.rollBtn.click();
+                }
             }
 
-            const label = document.createElement('p');
-            label.style.cssText = 'color:var(--text-muted); font-size: 0.8rem; grid-column: 1/-1; margin-bottom: 0.5rem;';
-            label.textContent = 'Or select active table:';
-            container.appendChild(label);
-
-            rooms.forEach(room => {
-                const card = document.createElement('div');
-                card.className = `room-card ${room.count >= room.max ? 'full' : ''}`;
-
-                const header = document.createElement('div');
-                header.style.display = 'flex';
-                header.style.justifyContent = 'space-between';
-                const title = document.createElement('h3');
-                title.textContent = room.name;
-                const mode = document.createElement('span');
-                mode.style.fontSize = '0.7rem';
-                mode.style.opacity = '0.8';
-                mode.textContent = room.rulesSummary || 'Standard';
-
-                header.appendChild(title);
-                header.appendChild(mode);
-
-                const status = document.createElement('div');
-                status.className = 'room-status';
-
-                const specText = room.spectators > 0 ? ` (+${room.spectators} 👁️)` : '';
-                status.textContent = `${room.count} / ${room.max} Players${specText}`;
-
-                if (room.status === 'playing') status.textContent += ' (Playing)';
-
-                card.appendChild(header);
-                card.appendChild(status);
-
-                const actions = document.createElement('div');
-                actions.style.marginTop = '10px';
-                actions.style.display = 'flex';
-                actions.style.gap = '10px';
-
-                const joinBtn = document.createElement('button');
-                joinBtn.className = 'btn primary small';
-                joinBtn.textContent = 'Join';
-                joinBtn.onclick = (e) => { e.stopPropagation(); this.joinRoom(room.name, false); };
-
-                if (room.count >= room.max) {
-                    joinBtn.disabled = true;
-                    joinBtn.textContent = 'Full';
-                    joinBtn.style.opacity = "0.5";
-                } else if (room.status === 'playing') {
-                    // can usually join late? logic says yes if not full
+            // B or Enter = Bank
+            if (e.code === 'KeyB' || e.code === 'Enter') {
+                e.preventDefault();
+                if (this.ui.bankBtn && !this.ui.bankBtn.disabled && this.ui.bankBtn.offsetParent) {
+                    this.ui.bankBtn.click();
                 }
-
-                const watchBtn = document.createElement('button');
-                watchBtn.className = 'btn secondary small';
-                watchBtn.textContent = 'Watch';
-                watchBtn.onclick = (e) => { e.stopPropagation(); this.joinRoom(room.name, true); };
-
-                actions.appendChild(joinBtn);
-                actions.appendChild(watchBtn);
-                card.appendChild(actions);
-
-                container.appendChild(card);
-            });
-        }
-
-        joinRoom(roomCode, asSpectator = false) {
-            this.debugLog(`Joining ${roomCode} (${asSpectator ? 'Spectating' : 'Playing'})...`);
-
-            let finalName = this.playerName;
-            // removed manual input check
-            localStorage.setItem('farkle-username', finalName);
-            localStorage.setItem('farkle-room-code', roomCode); // Save for refresh
-
-            this.socket.emit('join_game', { roomCode: roomCode, spectator: asSpectator, reconnectToken: this.reconnectToken, name: finalName });
-        }
-
-        joinGame() {
-            this.debugLog(`Joining Game...`);
-            this.socket.emit('join_game');
-        }
-
-        canInteract() {
-            if (this.isSpectator) return false;
-            if (!this.gameState || this.gameState.gameStatus !== 'playing') return false;
-            if (!this.socket || !this.socket.id) return false;
-            const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
-            return currentPlayer && currentPlayer.id === this.socket.id;
-        }
-
-        renderPlayers() {
-            if (!this.gameState || !this.gameState.players) return;
-            const container = this.ui.playerZonesContainer;
-            if (!container) return;
-
-            const players = this.gameState.players;
-            while (container.children.length > players.length) {
-                container.removeChild(container.lastChild);
             }
 
-            players.forEach((player, index) => {
-                let card = container.children[index];
-                const isCurrent = this.gameState.currentPlayerIndex === index && this.gameState.gameStatus === 'playing';
-
-                if (!card) {
-                    card = document.createElement('div');
-                    card.className = 'player-card';
-                    card.style.minWidth = "150px";
-                    if (index === this.gameState.currentPlayerIndex) card.classList.add('active'); // Preload active
-
-                    const info = document.createElement('div');
-                    info.className = 'player-info';
-
-                    const name = document.createElement('span');
-                    name.className = 'player-name';
-                    info.appendChild(name);
-
-                    const scoreDiv = document.createElement('div');
-                    scoreDiv.className = 'total-score';
-
-                    card.appendChild(info);
-                    card.appendChild(scoreDiv);
-                    container.appendChild(card);
-                }
-
-                const nameEl = card.querySelector('.player-name');
-                const scoreEl = card.querySelector('.total-score');
-                if (nameEl && nameEl.textContent !== player.name) nameEl.textContent = player.name;
-                if (scoreEl && scoreEl.textContent != player.score) scoreEl.textContent = player.score;
-
-                const isActive = card.classList.contains('active');
-                if (isCurrent && !isActive) card.classList.add('active');
-                if (!isCurrent && isActive) card.classList.remove('active');
-
-                const targetOpacity = player.connected ? "1" : "0.5";
-                if (card.style.opacity !== targetOpacity) card.style.opacity = targetOpacity;
-            });
-        }
-
-        renderDice(dice) {
-            if (!this.ui.diceContainer) return;
-            const container = this.ui.diceContainer;
-            while (container.children.length > dice.length) {
-                container.removeChild(container.lastChild);
-            }
-
-            dice.forEach((d, index) => {
-                let die = container.children[index];
-                if (!die) {
-                    die = document.createElement('div');
-                    die.className = 'die';
-                    container.appendChild(die);
-                }
-                if (d.selected && !die.classList.contains('selected')) die.classList.add('selected');
-                if (!d.selected && die.classList.contains('selected')) die.classList.remove('selected');
-                if (die.dataset.id !== d.id) die.dataset.id = d.id;
-
-                if (die.dataset.value != d.value) {
-                    die.dataset.value = d.value;
-                    die.innerHTML = '';
-                    for (let i = 0; i < d.value; i++) {
-                        const pip = document.createElement('div');
-                        pip.className = 'pip';
-                        die.appendChild(pip);
+            // 1-6 = Select Dice
+            if (e.key >= '1' && e.key <= '6') {
+                const idx = parseInt(e.key) - 1;
+                if (this.ui.diceContainer && this.ui.diceContainer.children[idx]) {
+                    const dieEl = this.ui.diceContainer.children[idx];
+                    if (dieEl.classList.contains('die')) {
+                        const id = dieEl.dataset.id;
+                        dieEl.classList.toggle('selected');
+                        this.socket.emit('toggle_die', { roomCode: this.roomCode, dieId: id });
+                        this.renderControls(); // Recalculate score display immediately
                     }
-                    die.style.animation = 'none';
-                    die.offsetHeight;
-                    die.style.animation = null;
                 }
-            });
-        }
+            }
+        });
+    }
 
-        updateGameState(state) {
-            this.gameState = state;
-            this.rules = state.rules || {};
-            this.renderPlayers();
+    initSocketEvents() {
+        this.socket.on('connect', () => {
+            this.debugLog(`Connected!`);
+            this.showFeedback("Connected!", "success");
+
+            const modeSelection = document.getElementById('mode-selection');
+            const roomList = document.getElementById('room-list-container');
+            const loadMsg = document.getElementById('connection-debug');
+            if (loadMsg) loadMsg.style.display = 'none';
+
+            if (!this.roomCode) {
+                modeSelection.style.display = 'block';
+            }
+
+            if (this.roomCode) {
+                this.socket.emit('join_game', { roomCode: this.roomCode, reconnectToken: this.reconnectToken, name: this.playerName });
+            }
+        });
+
+        this.socket.on('connect_error', (err) => {
+            this.debugLog(`Connection Error: ${err.message}`);
+            this.showFeedback("Connection Error!", "error");
+        });
+
+        this.socket.on('room_list', (rooms) => {
+            this.renderRoomList(rooms);
+        });
+
+        this.socket.on('disconnect', (reason) => {
+            this.debugLog(`Disconnected: ${reason}`);
+            this.showFeedback("Connection Lost! Reconnecting...", "error");
+        });
+
+        this.socket.on('joined', ({ playerId, state, isSpectator }) => {
+            this.playerId = playerId;
+            this.roomCode = state.roomCode;
+            this.isSpectator = isSpectator || false;
+
+            this.updateGameState(state);
+            this.ui.setupModal.classList.add('hidden');
+
+            if (this.isSpectator) this.showFeedback("Joined as Spectator", "info");
+            else this.showFeedback("Joined Room!", "success");
+
             this.renderControls();
-            this.renderDice(state.currentDice);
-            this.checkGameOver(state);
+        });
 
-            if (this.gameState.gameStatus === 'playing') {
-                const myPlayer = this.gameState.players.find(p => p.id === this.socket.id);
-                if (myPlayer) {
-                    const scoreText = `Score: ${myPlayer.score}`;
-                    const roundText = `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`;
-                    this.updateDiscordPresence(scoreText, roundText);
-                } else if (this.isSpectator) {
-                    this.updateDiscordPresence("Spectating", `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`);
-                }
+        this.socket.on('game_state_update', (state) => {
+            if (this.isRolling) {
+                this.pendingState = state;
+            } else {
+                this.updateGameState(state);
             }
+        });
+
+        this.socket.on('game_start', (state) => {
+            this.updateGameState(state);
+            this.showFeedback("Game Started!", "success");
+        });
+
+        this.socket.on('roll_result', (data) => {
+            const diceValues = data.dice.map(d => d.value);
+            this.isRolling = true;
+            if (this.ui.diceContainer) this.ui.diceContainer.classList.add('rolling');
+
+            this.dice3D.roll(diceValues).then(async () => {
+                if (this.ui.diceContainer) this.ui.diceContainer.classList.remove('rolling');
+
+                if (data.farkle) {
+                    this.showFeedback("FARKLE!", "error");
+                    // Buffer delay: maintain isRolling=true to catch incoming state updates in pendingState
+                    const delay = this.isSpeedMode ? 800 : 2000;
+                    await new Promise(r => setTimeout(r, delay));
+                }
+
+                this.isRolling = false;
+
+                const finalState = this.pendingState || data.state;
+                this.pendingState = null;
+
+                this.updateGameState(finalState);
+                if (data.hotDice) {
+                    this.showFeedback("HOT DICE!", "hot-dice");
+                }
+            });
+        });
+
+        this.socket.on('error', (msg) => {
+            this.showFeedback(msg, "error");
+        });
+
+        this.socket.on('chat_message', (data) => {
+            // data: { sender: "Name", message: "text", isSystem: boolean }
+            this.addChatMessage(data);
+        });
+    }
+
+    renderRoomList(allRooms) {
+        if (!Array.isArray(allRooms)) return;
+        const container = document.getElementById('room-list-container');
+        if (!container) return;
+
+        // Filter rooms based on current mode
+        const targetCategory = this.isSpeedMode ? 'speed' : 'casual';
+        const rooms = allRooms.filter(r => r.category === targetCategory);
+
+        // Re-create container structure to prevent duplicates but keep back button logic
+        container.innerHTML = '';
+
+        const backRow = document.createElement('div');
+        backRow.style.gridColumn = "1/-1";
+        backRow.style.marginBottom = "10px";
+        const backBtn = document.createElement('button');
+        backBtn.className = 'btn secondary small';
+        backBtn.textContent = '← Back to Modes';
+        backBtn.onclick = () => {
+            container.style.display = 'none';
+            document.getElementById('mode-selection').style.display = 'block';
+        };
+        backRow.appendChild(backBtn);
+        container.appendChild(backRow);
+
+        if (rooms.length === 0) {
+            const msg = document.createElement('p');
+            msg.style.cssText = 'color:var(--text-muted); padding: 1rem; text-align: center; font-size: 0.8rem;';
+            msg.textContent = 'No active tables for this mode.';
+            container.appendChild(msg);
+            return;
         }
 
-        renderControls() {
-            if (!this.gameState) return;
+        const label = document.createElement('p');
+        label.style.cssText = 'color:var(--text-muted); font-size: 0.8rem; grid-column: 1/-1; margin-bottom: 0.5rem;';
+        label.textContent = 'Or select active table:';
+        container.appendChild(label);
 
-            // If Spectator, hide all controls and show spectator message
-            if (this.isSpectator) {
-                this.ui.rollBtn.style.display = 'none';
-                this.ui.bankBtn.style.display = 'none';
-                const hsBtn = document.getElementById('hs-roll-btn');
-                if (hsBtn) hsBtn.style.display = 'none';
-                const startBtn = document.getElementById('lobby-start-btn');
-                if (startBtn) startBtn.style.display = 'none';
+        rooms.forEach(room => {
+            const card = document.createElement('div');
+            card.className = `room-card ${room.count >= room.max ? 'full' : ''}`;
 
-                const currentPlayerName = this.gameState.players[this.gameState.currentPlayerIndex]?.name || "Someone";
-                this.ui.actionText.textContent = `Spectating. Current Turn: ${currentPlayerName}`;
-                this.ui.currentScoreDisplay.textContent = `Round Score: ${this.gameState.roundAccumulatedScore}`;
-                return;
+            const header = document.createElement('div');
+            header.style.display = 'flex';
+            header.style.justifyContent = 'space-between';
+            const title = document.createElement('h3');
+            title.textContent = room.name;
+            const mode = document.createElement('span');
+            mode.style.fontSize = '0.7rem';
+            mode.style.opacity = '0.8';
+            mode.textContent = room.rulesSummary || 'Standard';
+
+            header.appendChild(title);
+            header.appendChild(mode);
+
+            const status = document.createElement('div');
+            status.className = 'room-status';
+
+            const specText = room.spectators > 0 ? ` (+${room.spectators} 👁️)` : '';
+            status.textContent = `${room.count} / ${room.max} Players${specText}`;
+
+            if (room.status === 'playing') status.textContent += ' (Playing)';
+
+            card.appendChild(header);
+            card.appendChild(status);
+
+            const actions = document.createElement('div');
+            actions.style.marginTop = '10px';
+            actions.style.display = 'flex';
+            actions.style.gap = '10px';
+
+            const joinBtn = document.createElement('button');
+            joinBtn.className = 'btn primary small';
+            joinBtn.textContent = 'Join';
+            joinBtn.onclick = (e) => { e.stopPropagation(); this.joinRoom(room.name, false); };
+
+            if (room.count >= room.max) {
+                joinBtn.disabled = true;
+                joinBtn.textContent = 'Full';
+                joinBtn.style.opacity = "0.5";
+            } else if (room.status === 'playing') {
+                // can usually join late? logic says yes if not full
             }
 
-            if (this.gameState.gameStatus === 'waiting') {
-                this.ui.currentScoreDisplay.textContent = "Waiting for players...";
-                this.ui.rollBtn.style.display = 'none';
-                this.ui.bankBtn.style.display = 'none';
-                // Remove High Stakes btn if present
-                const hsBtn = document.getElementById('hs-roll-btn');
-                if (hsBtn) hsBtn.remove();
+            const watchBtn = document.createElement('button');
+            watchBtn.className = 'btn secondary small';
+            watchBtn.textContent = 'Watch';
+            watchBtn.onclick = (e) => { e.stopPropagation(); this.joinRoom(room.name, true); };
 
-                let startBtn = document.getElementById('lobby-start-btn');
-                if (!startBtn) {
-                    startBtn = document.createElement('button');
-                    startBtn.id = 'lobby-start-btn';
-                    startBtn.className = 'btn primary pulse';
-                    startBtn.textContent = 'Start Game';
-                    startBtn.onclick = () => this.socket.emit('start_game', { roomCode: this.roomCode });
-                    if (this.ui.rollBtn.parentElement) this.ui.rollBtn.parentElement.appendChild(startBtn);
-                }
-                if (this.gameState.players.length >= 2) {
-                    startBtn.style.display = 'block';
-                    startBtn.disabled = false;
-                    startBtn.classList.add('pulse');
-                    this.ui.actionText.textContent = "Lobby Ready! Start Game?";
-                } else {
-                    startBtn.style.display = 'block';
-                    startBtn.disabled = true;
-                    this.ui.actionText.textContent = `Need ${2 - this.gameState.players.length} more`;
-                }
-                return;
+            actions.appendChild(joinBtn);
+            actions.appendChild(watchBtn);
+            card.appendChild(actions);
+
+            container.appendChild(card);
+        });
+    }
+
+    joinRoom(roomCode, asSpectator = false) {
+        this.debugLog(`Joining ${roomCode} (${asSpectator ? 'Spectating' : 'Playing'})...`);
+
+        let finalName = this.playerName;
+        // removed manual input check
+        localStorage.setItem('farkle-username', finalName);
+        localStorage.setItem('farkle-room-code', roomCode); // Save for refresh
+
+        this.socket.emit('join_game', { roomCode: roomCode, spectator: asSpectator, reconnectToken: this.reconnectToken, name: finalName });
+    }
+
+    joinGame() {
+        this.debugLog(`Joining Game...`);
+        this.socket.emit('join_game');
+    }
+
+    leaveGame() {
+        if (!confirm("Are you sure you want to leave the table?")) return;
+
+        this.debugLog("Leaving Game...");
+
+        // 1. Notify Server
+        if (this.socket) {
+            this.socket.emit('leave_game');
+        }
+
+        // 2. Clear Local State
+        this.roomCode = null;
+        this.gameState = null;
+        this.playerId = null;
+        this.isSpectator = false;
+        localStorage.removeItem('farkle-room-code');
+
+        // 3. Reset UI to Lobby
+        this.ui.setupModal.classList.remove('hidden');
+        document.getElementById('mode-selection').style.display = 'block';
+        document.getElementById('room-list-container').style.display = 'none'; // Reset to mode select
+
+        // Clear Game Board UI
+        if (this.ui.playerZonesContainer) this.ui.playerZonesContainer.innerHTML = '';
+        if (this.ui.diceContainer) this.ui.diceContainer.innerHTML = '';
+        this.ui.actionText.textContent = "Roll to start your turn";
+        this.ui.currentScoreDisplay.textContent = "Roll Score: 0";
+
+        // Reset Discord Presence
+        this.updateDiscordPresence("In Lobby", "Selecting Table");
+
+        // Refresh Room List (will happen on mode select, but good to ensure socket is ready)
+        // this.socket.emit('get_room_list'); // Done when clicking mode
+    }
+
+    canInteract() {
+        if (this.isSpectator) return false;
+        if (!this.gameState || this.gameState.gameStatus !== 'playing') return false;
+        if (!this.socket || !this.socket.id) return false;
+        const currentPlayer = this.gameState.players[this.gameState.currentPlayerIndex];
+        return currentPlayer && currentPlayer.id === this.socket.id;
+    }
+
+    renderPlayers() {
+        if (!this.gameState || !this.gameState.players) return;
+        const container = this.ui.playerZonesContainer;
+        if (!container) return;
+
+        const players = this.gameState.players;
+        while (container.children.length > players.length) {
+            container.removeChild(container.lastChild);
+        }
+
+        players.forEach((player, index) => {
+            let card = container.children[index];
+            const isCurrent = this.gameState.currentPlayerIndex === index && this.gameState.gameStatus === 'playing';
+
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'player-card';
+                card.style.minWidth = "150px";
+                if (index === this.gameState.currentPlayerIndex) card.classList.add('active'); // Preload active
+
+                const info = document.createElement('div');
+                info.className = 'player-info';
+
+                const name = document.createElement('span');
+                name.className = 'player-name';
+                info.appendChild(name);
+
+                const scoreDiv = document.createElement('div');
+                scoreDiv.className = 'total-score';
+
+                card.appendChild(info);
+                card.appendChild(scoreDiv);
+                container.appendChild(card);
             }
 
-            // --- Debug Panel ---
-            let debugPanel = document.getElementById('debug-panel');
-            if (!debugPanel && this.ui.bankBtn.parentElement && this.ui.bankBtn.parentElement.parentElement) {
-                debugPanel = document.createElement('div');
-                debugPanel.id = 'debug-panel';
-                debugPanel.className = 'tools-panel';
+            const nameEl = card.querySelector('.player-name');
+            const scoreEl = card.querySelector('.total-score');
+            if (nameEl && nameEl.textContent !== player.name) nameEl.textContent = player.name;
+            if (scoreEl && scoreEl.textContent != player.score) scoreEl.textContent = player.score;
 
-                const forceBtn = document.createElement('button');
-                forceBtn.className = 'btn micro';
-                forceBtn.textContent = 'Force Next';
-                forceBtn.onclick = () => this.socket.emit('force_next_turn', { roomCode: this.roomCode });
+            const isActive = card.classList.contains('active');
+            if (isCurrent && !isActive) card.classList.add('active');
+            if (!isCurrent && isActive) card.classList.remove('active');
 
-                const restartBtn = document.createElement('button');
-                restartBtn.className = 'btn micro';
-                restartBtn.textContent = 'Reset';
-                restartBtn.onclick = () => {
-                    if (confirm("Restart game?")) this.socket.emit('debug_restart_preserve', { roomCode: this.roomCode });
-                };
+            const targetOpacity = player.connected ? "1" : "0.5";
+            if (card.style.opacity !== targetOpacity) card.style.opacity = targetOpacity;
+        });
+    }
 
-                debugPanel.appendChild(forceBtn);
-                debugPanel.appendChild(restartBtn);
-                this.ui.bankBtn.parentElement.parentElement.appendChild(debugPanel);
-                // Host Checks
-                if (this.gameState.hostId === this.socket.id) {
-                    debugPanel.style.display = 'block';
-                } else {
-                    debugPanel.style.display = 'none';
-                }
+    renderDice(dice) {
+        if (!this.ui.diceContainer) return;
+        const container = this.ui.diceContainer;
+        while (container.children.length > dice.length) {
+            container.removeChild(container.lastChild);
+        }
+
+        dice.forEach((d, index) => {
+            let die = container.children[index];
+            if (!die) {
+                die = document.createElement('div');
+                die.className = 'die';
+                container.appendChild(die);
             }
+            if (d.selected && !die.classList.contains('selected')) die.classList.add('selected');
+            if (!d.selected && die.classList.contains('selected')) die.classList.remove('selected');
+            if (die.dataset.id !== d.id) die.dataset.id = d.id;
 
+            if (die.dataset.value != d.value) {
+                die.dataset.value = d.value;
+                die.innerHTML = '';
+                for (let i = 0; i < d.value; i++) {
+                    const pip = document.createElement('div');
+                    pip.className = 'pip';
+                    die.appendChild(pip);
+                }
+                die.style.animation = 'none';
+                die.offsetHeight;
+                die.style.animation = null;
+            }
+        });
+    }
+
+    updateGameState(state) {
+        this.gameState = state;
+        this.rules = state.rules || {};
+        this.renderPlayers();
+        this.renderControls();
+        this.renderDice(state.currentDice);
+        this.checkGameOver(state);
+
+        if (this.gameState.gameStatus === 'playing') {
+            const myPlayer = this.gameState.players.find(p => p.id === this.socket.id);
+            if (myPlayer) {
+                const scoreText = `Score: ${myPlayer.score}`;
+                const roundText = `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`;
+                this.updateDiscordPresence(scoreText, roundText);
+            } else if (this.isSpectator) {
+                this.updateDiscordPresence("Spectating", `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`);
+            }
+        }
+    }
+
+    renderControls() {
+        if (!this.gameState) return;
+
+        // If Spectator, hide all controls and show spectator message
+        if (this.isSpectator) {
+            this.ui.rollBtn.style.display = 'none';
+            this.ui.bankBtn.style.display = 'none';
+            const hsBtn = document.getElementById('hs-roll-btn');
+            if (hsBtn) hsBtn.style.display = 'none';
             const startBtn = document.getElementById('lobby-start-btn');
             if (startBtn) startBtn.style.display = 'none';
 
-            this.ui.rollBtn.style.display = 'inline-block';
-            this.ui.bankBtn.style.display = 'inline-block';
+            const currentPlayerName = this.gameState.players[this.gameState.currentPlayerIndex]?.name || "Someone";
+            this.ui.actionText.textContent = `Spectating. Current Turn: ${currentPlayerName}`;
+            this.ui.currentScoreDisplay.textContent = `Round Score: ${this.gameState.roundAccumulatedScore}`;
+            return;
+        }
 
-            const isMyTurn = this.canInteract();
-            const selectedDice = this.gameState.currentDice.filter(d => d.selected);
-            const selectedScore = calculateScore(selectedDice.map(d => d.value), this.rules);
-            const totalRound = this.gameState.roundAccumulatedScore + selectedScore;
+        if (this.gameState.gameStatus === 'waiting') {
+            this.ui.currentScoreDisplay.textContent = "Waiting for players...";
+            this.ui.rollBtn.style.display = 'none';
+            this.ui.bankBtn.style.display = 'none';
+            // Remove High Stakes btn if present
+            const hsBtn = document.getElementById('hs-roll-btn');
+            if (hsBtn) hsBtn.remove();
 
-            this.ui.currentScoreDisplay.textContent = `Selection: ${selectedScore} (Round: ${totalRound})`;
-
-            // High Stakes Button Logic
-            let hsBtn = document.getElementById('hs-roll-btn');
-            if (!hsBtn) {
-                hsBtn = document.createElement('button');
-                hsBtn.id = 'hs-roll-btn';
-                hsBtn.className = 'btn secondary wiggle-hover'; // Distinct style
-                hsBtn.style.position = 'absolute';
-                hsBtn.style.top = '-50px'; // Position it above or nearby
-                hsBtn.style.left = '50%';
-                hsBtn.style.transform = 'translateX(-50%)';
-                hsBtn.style.whiteSpace = 'nowrap';
-                // We'll append it to the button group
-                if (this.ui.rollBtn.parentElement) {
-                    this.ui.rollBtn.parentElement.style.position = 'relative'; // ensure container is relative
-                    this.ui.rollBtn.parentElement.appendChild(hsBtn);
-                }
+            let startBtn = document.getElementById('lobby-start-btn');
+            if (!startBtn) {
+                startBtn = document.createElement('button');
+                startBtn.id = 'lobby-start-btn';
+                startBtn.className = 'btn primary pulse';
+                startBtn.textContent = 'Start Game';
+                startBtn.onclick = () => this.socket.emit('start_game', { roomCode: this.roomCode });
+                if (this.ui.rollBtn.parentElement) this.ui.rollBtn.parentElement.appendChild(startBtn);
             }
+            if (this.gameState.players.length >= 2) {
+                startBtn.style.display = 'block';
+                startBtn.disabled = false;
+                startBtn.classList.add('pulse');
+                this.ui.actionText.textContent = "Lobby Ready! Start Game?";
+            } else {
+                startBtn.style.display = 'block';
+                startBtn.disabled = true;
+                this.ui.actionText.textContent = `Need ${2 - this.gameState.players.length} more`;
+            }
+            return;
+        }
 
-            if (!isMyTurn) {
-                this.ui.rollBtn.disabled = true;
+        // --- Debug Panel ---
+        let debugPanel = document.getElementById('debug-panel');
+        if (!debugPanel && this.ui.bankBtn.parentElement && this.ui.bankBtn.parentElement.parentElement) {
+            debugPanel = document.createElement('div');
+            debugPanel.id = 'debug-panel';
+            debugPanel.className = 'tools-panel';
+
+            const forceBtn = document.createElement('button');
+            forceBtn.className = 'btn micro';
+            forceBtn.textContent = 'Force Next';
+            forceBtn.onclick = () => this.socket.emit('force_next_turn', { roomCode: this.roomCode });
+
+            const restartBtn = document.createElement('button');
+            restartBtn.className = 'btn micro';
+            restartBtn.textContent = 'Reset';
+            restartBtn.onclick = () => {
+                if (confirm("Restart game?")) this.socket.emit('debug_restart_preserve', { roomCode: this.roomCode });
+            };
+
+            debugPanel.appendChild(forceBtn);
+            debugPanel.appendChild(restartBtn);
+            this.ui.bankBtn.parentElement.parentElement.appendChild(debugPanel);
+            // Host Checks
+            if (this.gameState.hostId === this.socket.id) {
+                debugPanel.style.display = 'block';
+            } else {
+                debugPanel.style.display = 'none';
+            }
+        }
+
+        const startBtn = document.getElementById('lobby-start-btn');
+        if (startBtn) startBtn.style.display = 'none';
+
+        this.ui.rollBtn.style.display = 'inline-block';
+        this.ui.bankBtn.style.display = 'inline-block';
+
+        const isMyTurn = this.canInteract();
+        const selectedDice = this.gameState.currentDice.filter(d => d.selected);
+        const selectedScore = calculateScore(selectedDice.map(d => d.value), this.rules);
+        const totalRound = this.gameState.roundAccumulatedScore + selectedScore;
+
+        this.ui.currentScoreDisplay.textContent = `Selection: ${selectedScore} (Round: ${totalRound})`;
+
+        // High Stakes Button Logic
+        let hsBtn = document.getElementById('hs-roll-btn');
+        if (!hsBtn) {
+            hsBtn = document.createElement('button');
+            hsBtn.id = 'hs-roll-btn';
+            hsBtn.className = 'btn secondary wiggle-hover'; // Distinct style
+            hsBtn.style.position = 'absolute';
+            hsBtn.style.top = '-50px'; // Position it above or nearby
+            hsBtn.style.left = '50%';
+            hsBtn.style.transform = 'translateX(-50%)';
+            hsBtn.style.whiteSpace = 'nowrap';
+            // We'll append it to the button group
+            if (this.ui.rollBtn.parentElement) {
+                this.ui.rollBtn.parentElement.style.position = 'relative'; // ensure container is relative
+                this.ui.rollBtn.parentElement.appendChild(hsBtn);
+            }
+        }
+
+        if (!isMyTurn) {
+            this.ui.rollBtn.disabled = true;
+            this.ui.bankBtn.disabled = true;
+            hsBtn.style.display = 'none';
+            const currentPlayerName = this.gameState.players[this.gameState.currentPlayerIndex]?.name || "Someone";
+            this.ui.actionText.textContent = `Waiting for ${currentPlayerName}...`;
+            this.ui.rollBtn.textContent = 'Roll';
+        } else {
+            this.ui.actionText.textContent = "Your turn";
+
+            const hasSelected = selectedDice.length > 0;
+            const startOfTurn = (this.gameState.currentDice.length === 0);
+
+            if (startOfTurn) {
+                // Main Roll Logic (Start of Turn)
                 this.ui.bankBtn.disabled = true;
-                hsBtn.style.display = 'none';
-                const currentPlayerName = this.gameState.players[this.gameState.currentPlayerIndex]?.name || "Someone";
-                this.ui.actionText.textContent = `Waiting for ${currentPlayerName}...`;
-                this.ui.rollBtn.textContent = 'Roll';
-            } else {
-                this.ui.actionText.textContent = "Your turn";
 
-                const hasSelected = selectedDice.length > 0;
-                const startOfTurn = (this.gameState.currentDice.length === 0);
-
-                if (startOfTurn) {
-                    // Main Roll Logic (Start of Turn)
-                    this.ui.bankBtn.disabled = true;
-
-                    // Check if High Stakes is valid
-                    if (this.gameState.canHighStakes) {
-                        hsBtn.style.display = 'block';
-                        hsBtn.textContent = `Roll Leftovers? (+1000pts)`;
-                        hsBtn.onclick = () => {
-                            this.socket.emit('roll', { roomCode: this.roomCode, confirmedSelections: [], useHighStakes: true });
-                            hsBtn.style.display = 'none';
-                        };
-
-                        this.ui.rollBtn.textContent = "Roll Fresh (6)";
-                        this.ui.rollBtn.disabled = false;
-                    } else {
+                // Check if High Stakes is valid
+                if (this.gameState.canHighStakes) {
+                    hsBtn.style.display = 'block';
+                    hsBtn.textContent = `Roll Leftovers? (+1000pts)`;
+                    hsBtn.onclick = () => {
+                        this.socket.emit('roll', { roomCode: this.roomCode, confirmedSelections: [], useHighStakes: true });
                         hsBtn.style.display = 'none';
-                        this.ui.rollBtn.textContent = "Roll Dice";
-                        this.ui.rollBtn.disabled = false;
-                    }
+                    };
 
+                    this.ui.rollBtn.textContent = "Roll Fresh (6)";
+                    this.ui.rollBtn.disabled = false;
                 } else {
-                    // Mid-turn
                     hsBtn.style.display = 'none';
-
-                    const isValid = isScoringSelection(selectedDice.map(d => d.value), this.rules);
-                    if (isValid) {
-                        this.ui.rollBtn.disabled = false;
-                        this.ui.rollBtn.textContent = "Roll Remaining";
-                        this.ui.bankBtn.disabled = false;
-                    } else {
-                        this.ui.rollBtn.disabled = true;
-                        this.ui.bankBtn.disabled = true;
-                        if (this.gameState.currentDice.length === 6 && this.gameState.roundAccumulatedScore > 0 && !selectedDice.length) {
-                            this.ui.actionText.textContent = "HOT DICE! Select to continue!";
-                        } else {
-                            this.ui.actionText.textContent = "Select scoring dice!";
-                        }
-                    }
-
-                    if (this.gameState.currentDice.length > 0 && selectedDice.length === this.gameState.currentDice.length) {
-                        this.ui.rollBtn.textContent = "Roll Hot Dice!";
-                    }
+                    this.ui.rollBtn.textContent = "Roll Dice";
+                    this.ui.rollBtn.disabled = false;
                 }
-            }
-        }
 
-        checkGameOver(state) {
-            if (state.gameStatus === 'finished') {
-                this.ui.gameOverModal.classList.remove('hidden');
-                const winner = state.winner;
-                let title = "";
-                if (winner === 'tie') title = "It's a Tie!";
-                else if (winner) title = `${winner.name} Wins!`;
-                this.ui.winnerText.textContent = title;
-
-                // Populate score board
-                const p1 = state.players[0];
-                const p2 = state.players[1];
-                if (p1) {
-                    this.ui.endP1Name.textContent = p1.name;
-                    this.ui.endP1Score.textContent = p1.score;
-                }
-                if (p2) {
-                    this.ui.endP2Name.textContent = p2.name;
-                    this.ui.endP2Score.textContent = p2.score;
-                }
             } else {
-                this.ui.gameOverModal.classList.add('hidden');
+                // Mid-turn
+                hsBtn.style.display = 'none';
+
+                const isValid = isScoringSelection(selectedDice.map(d => d.value), this.rules);
+                if (isValid) {
+                    this.ui.rollBtn.disabled = false;
+                    this.ui.rollBtn.textContent = "Roll Remaining";
+                    this.ui.bankBtn.disabled = false;
+                } else {
+                    this.ui.rollBtn.disabled = true;
+                    this.ui.bankBtn.disabled = true;
+                    if (this.gameState.currentDice.length === 6 && this.gameState.roundAccumulatedScore > 0 && !selectedDice.length) {
+                        this.ui.actionText.textContent = "HOT DICE! Select to continue!";
+                    } else {
+                        this.ui.actionText.textContent = "Select scoring dice!";
+                    }
+                }
+
+                if (this.gameState.currentDice.length > 0 && selectedDice.length === this.gameState.currentDice.length) {
+                    this.ui.rollBtn.textContent = "Roll Hot Dice!";
+                }
             }
-        }
-
-        showFeedback(text, type = "info") {
-            if (!this.ui.feedback) return;
-            this.ui.feedback.textContent = text;
-            this.ui.feedback.classList.remove('hidden', 'error', 'success', 'hot-dice');
-            if (type === 'error') this.ui.feedback.classList.add('error');
-            else if (type === 'success') this.ui.feedback.classList.add('success');
-            else if (type === 'hot-dice') this.ui.feedback.classList.add('hot-dice');
-            setTimeout(() => {
-                this.ui.feedback.classList.add('hidden');
-            }, 2000);
-        }
-
-        debugLog(msg) {
-            console.log(`[FarkleClient] ${msg}`);
-            const el = document.getElementById('connection-debug');
-            if (el) el.textContent = msg;
         }
     }
+
+    checkGameOver(state) {
+        if (state.gameStatus === 'finished') {
+            this.ui.gameOverModal.classList.remove('hidden');
+            const winner = state.winner;
+            let title = "";
+            if (winner === 'tie') title = "It's a Tie!";
+            else if (winner) title = `${winner.name} Wins!`;
+            this.ui.winnerText.textContent = title;
+
+            // Populate score board
+            const p1 = state.players[0];
+            const p2 = state.players[1];
+            if (p1) {
+                this.ui.endP1Name.textContent = p1.name;
+                this.ui.endP1Score.textContent = p1.score;
+            }
+            if (p2) {
+                this.ui.endP2Name.textContent = p2.name;
+                this.ui.endP2Score.textContent = p2.score;
+            }
+        } else {
+            this.ui.gameOverModal.classList.add('hidden');
+        }
+    }
+
+    showFeedback(text, type = "info") {
+        if (!this.ui.feedback) return;
+        this.ui.feedback.textContent = text;
+        this.ui.feedback.classList.remove('hidden', 'error', 'success', 'hot-dice');
+        if (type === 'error') this.ui.feedback.classList.add('error');
+        else if (type === 'success') this.ui.feedback.classList.add('success');
+        else if (type === 'hot-dice') this.ui.feedback.classList.add('hot-dice');
+        setTimeout(() => {
+            this.ui.feedback.classList.add('hidden');
+        }, 2000);
+    }
+
+    debugLog(msg) {
+        console.log(`[FarkleClient] ${msg}`);
+        const el = document.getElementById('connection-debug');
+        if (el) el.textContent = msg;
+    }
+
+    // --- Chat Methods ---
+    sendChat() {
+        if (!this.ui.chatInput) return;
+        const text = this.ui.chatInput.value.trim();
+        if (!text) return;
+        if (text.length > 200) return;
+
+        if (this.socket) {
+            this.socket.emit('send_chat', { roomCode: this.roomCode, message: text });
+        }
+        this.ui.chatInput.value = '';
+    }
+
+    addChatMessage(data) {
+        if (!this.ui.chatMessages) return;
+        const msgDiv = document.createElement('div');
+        msgDiv.className = 'chat-msg';
+
+        if (data.isSystem) {
+            msgDiv.classList.add('system');
+            msgDiv.textContent = data.message;
+        } else {
+            if (data.sender === this.playerName) {
+                msgDiv.classList.add('mine');
+            } else {
+                msgDiv.classList.add('others');
+                const author = document.createElement('span');
+                author.className = 'msg-author';
+                author.textContent = data.sender;
+                msgDiv.appendChild(author);
+            }
+            const textSpan = document.createElement('span');
+            textSpan.textContent = data.message;
+            msgDiv.appendChild(textSpan);
+        }
+        this.ui.chatMessages.appendChild(msgDiv);
+        this.ui.chatMessages.scrollTop = this.ui.chatMessages.scrollHeight;
+    }
+}
 
 class Dice3DManager {
     constructor(container) {

@@ -431,7 +431,8 @@ io.on('connection', (socket) => {
             }
 
             // Global Reconnect Search
-            if (!existingPlayer && token) {
+            // If the user SPECIFICALLY asked for a room, we should respect that and not hijack them to an old room.
+            if (!existingPlayer && token && !requestedRoom) {
                 for (const [code, g] of games.entries()) {
                     if (code === roomCode) continue;
                     const p = g.players.find(p => p.reconnectToken === token && !p.connected);
@@ -519,6 +520,7 @@ io.on('connection', (socket) => {
             const p = game.players.find(p => p.id === socket.id);
             if (p) {
                 p.connected = false;
+                p.reconnectToken = null; // Clear token on explicit leave
                 if (game.gameStatus === 'waiting') {
                     game.players = game.players.filter(pl => pl.id !== socket.id);
                 }
@@ -597,6 +599,41 @@ io.on('connection', (socket) => {
                 io.to(roomCode).emit('game_state_update', game.getState());
             }
         }
+    });
+
+    socket.on('send_chat', ({ roomCode, message }) => {
+        if (!games.has(roomCode)) return;
+        const game = games.get(roomCode);
+
+        let senderName = "Anonymous";
+        const player = game.players.find(p => p.id === socket.id);
+        if (player) {
+            senderName = player.name;
+        } else if (game.spectators.includes(socket.id)) {
+            // Try to resolve spectator name if possible, or Spectator
+            // We can check local socket auth or map if we stored it, but simplified:
+            // The client sent 'name' on join, but we might not have stored it for spectators easily in this minimal object
+            // Let's rely on GameState players. For spectators, maybe we can't get name easily without storage.
+            // Actually join_game for spectator doesn't store name in game object explicitly other than potentially in a spectator list if we extended it.
+            // For now, let's assume players only or generic.
+            // Wait, join_game stores players. Spectators are just IDs in array in this implementation?
+            // Checking join_game: "spectators.push(socket.id)" - yes just IDs.
+            // So spectators are anonymous in chat unless `socket.handshake.auth.name` or similar was persisted.
+            // socket.handshake.auth.name is sent by client on connection!
+            senderName = socket.handshake.auth.name || "Spectator";
+        } else {
+            senderName = socket.handshake.auth.name || "Unknown";
+        }
+
+        // Sanitize? 
+        if (!message || message.trim().length === 0) return;
+        const safeMessage = message.substring(0, 200);
+
+        io.to(roomCode).emit('chat_message', {
+            sender: senderName,
+            message: safeMessage,
+            isSystem: false
+        });
     });
 
     socket.on('restart', ({ roomCode }) => {
