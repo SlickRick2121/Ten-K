@@ -171,7 +171,7 @@ class FarkleClient {
             this.roomCode = null;
             this.roomId = null;
             // Restore Room Code if available for auto-rejoin
-            this.roomCode = localStorage.getItem('farkle-room-code') || null;
+            this.roomCode = sessionStorage.getItem('farkle-room-code') || null;
             this.playerId = null;
             this.gameState = null;
             this.gameState = null;
@@ -728,7 +728,7 @@ class FarkleClient {
         let finalName = this.playerName;
         // removed manual input check
         localStorage.setItem('farkle-username', finalName);
-        localStorage.setItem('farkle-room-code', roomCode); // Save for refresh
+        sessionStorage.setItem('farkle-room-code', roomCode); // Save for refresh
 
         this.socket.emit('join_game', { roomCode: roomCode, spectator: asSpectator, reconnectToken: this.reconnectToken, name: finalName });
     }
@@ -753,7 +753,7 @@ class FarkleClient {
         this.gameState = null;
         this.playerId = null;
         this.isSpectator = false;
-        localStorage.removeItem('farkle-room-code');
+        sessionStorage.removeItem('farkle-room-code');
 
         // 3. Reset UI to Lobby
         this.ui.setupModal.classList.remove('hidden');
