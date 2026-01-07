@@ -7,7 +7,6 @@ import * as CANNON from "cannon-es";
 
 // --- INLINED RULES START ---
 const DEFAULT_RULES = {
-    // Scoring Values
     single1: 100,
     single5: 50,
     triple1: 1000,
@@ -24,14 +23,12 @@ const DEFAULT_RULES = {
     sixOnes: 5000,
     twoTriplets: 2500,
     fullHouseBonus: 250,
-
-    // Feature Toggles (Game Modes/Variants can override these)
+    fourStraight: 500,
+    fiveStraight: 1200,
     enableThreePairs: true,
     enableTwoTriplets: true,
     enableFullHouse: false,
     enableSixOnesInstantWin: false,
-
-    // Logic Variants
     openingScore: 0,
     winScore: 10000,
     threeFarklesPenalty: 1000,
@@ -43,47 +40,41 @@ const DEFAULT_RULES = {
 
 function calculateScore(dice, rules = DEFAULT_RULES) {
     if (!dice || dice.length === 0) return 0;
-
-    // Ensure rules object is complete
     rules = { ...DEFAULT_RULES, ...rules };
-
     const counts = {};
-    for (const die of dice) {
-        counts[die] = (counts[die] || 0) + 1;
-    }
+    for (const die of dice) counts[die] = (counts[die] || 0) + 1;
     const distinct = Object.keys(counts).length;
     const totalDice = dice.length;
 
-    // 1. Straight (1-6)
     if (totalDice === 6 && distinct === 6) return rules.straight;
-
-    // 2. Six Ones
     if (counts[1] === 6) return rules.sixOnes;
-
-    // 3. Six of a Kind
     for (let i = 2; i <= 6; i++) {
         if (counts[i] === 6) return rules.sixOfAKind;
     }
-
-    // 4. Three Pairs
-    if (rules.enableThreePairs && totalDice === 6 && distinct === 3) {
-        const isThreePairs = Object.values(counts).every(c => c === 2);
-        if (isThreePairs) return rules.threePairs;
+    if (rules.enable5Straight && totalDice === 5 && distinct === 5) {
+        if ((counts[1] && counts[2] && counts[3] && counts[4] && counts[5]) ||
+            (counts[2] && counts[3] && counts[4] && counts[5] && counts[6])) {
+            return rules.fiveStraight;
+        }
     }
-
-    // 5. Two Triplets
+    if (rules.enable4Straight && totalDice === 4 && distinct === 4) {
+        const has1234 = (counts[1] && counts[2] && counts[3] && counts[4]);
+        const has2345 = (counts[2] && counts[3] && counts[4] && counts[5]);
+        const has3456 = (counts[3] && counts[4] && counts[5] && counts[6]);
+        if (has1234 || has2345 || has3456) return rules.fourStraight;
+    }
+    if (rules.enableThreePairs && totalDice === 6 && distinct === 3) {
+        if (Object.values(counts).every(c => c === 2)) return rules.threePairs;
+    }
     if (rules.enableTwoTriplets && totalDice === 6 && distinct === 2) {
         const vals = Object.values(counts);
         if (vals[0] === 3 && vals[1] === 3) return rules.twoTriplets;
     }
 
-    // --- Standard Counting Score ---
     let score = 0;
-
     for (let face = 1; face <= 6; face++) {
         const count = counts[face] || 0;
         if (count === 0) continue;
-
         let tripleValue = 0;
         switch (face) {
             case 1: tripleValue = rules.triple1; break;
@@ -95,22 +86,18 @@ function calculateScore(dice, rules = DEFAULT_RULES) {
         }
 
         if (count >= 3) {
-            if (count === 3) {
-                score += tripleValue;
-            } else if (count === 4) {
-                if (face === 1 && (1000 + (count - 3) * 100) > rules.fourOfAKind) {
-                    score += (tripleValue + (count - 3) * rules.single1);
-                } else {
-                    score += rules.fourOfAKind;
-                }
-            } else if (count === 5) {
-                if (face === 1 && (1000 + (count - 3) * 100) > rules.fiveOfAKind) {
-                    score += (tripleValue + (count - 3) * rules.single1);
-                } else {
-                    score += rules.fiveOfAKind;
-                }
-            } else if (count === 6) {
-                score += rules.sixOfAKind;
+            let nKindScore = 0;
+            if (count === 3) nKindScore = tripleValue;
+            else if (count === 4) nKindScore = rules.fourOfAKind || (tripleValue * 2);
+            else if (count === 5) nKindScore = rules.fiveOfAKind || (tripleValue * 4);
+            else if (count === 6) nKindScore = rules.sixOfAKind || (tripleValue * 8);
+
+            if (face === 1 || face === 5) {
+                const singleVal = (face === 1 ? rules.single1 : rules.single5);
+                const combinedScore = tripleValue + (count - 3) * singleVal;
+                score += Math.max(nKindScore, combinedScore);
+            } else {
+                score += nKindScore;
             }
         } else {
             if (face === 1) score += count * rules.single1;
@@ -123,18 +110,21 @@ function calculateScore(dice, rules = DEFAULT_RULES) {
 function isScoringSelection(dice, rules = DEFAULT_RULES) {
     const score = calculateScore(dice, rules);
     if (score === 0) return false;
-
-    // Check for contributing dice
     const counts = {};
     for (const d of dice) counts[d] = (counts[d] || 0) + 1;
-
-    // If straight, all contribute.
-    if (dice.length === 6 && Object.keys(counts).length === 6) return true;
-
-    // If 3 pairs, all contribute.
-    if ((rules.enableThreePairs || DEFAULT_RULES.enableThreePairs) && dice.length === 6 && Object.values(counts).every(c => c === 2)) return true;
-
-    // Check individual faces
+    const distinct = Object.keys(counts).length;
+    const totalDice = dice.length;
+    if (totalDice === 6 && distinct === 6) return true;
+    if (rules.enableThreePairs && totalDice === 6 && Object.values(counts).every(c => c === 2)) return true;
+    if (rules.enable5Straight && totalDice === 5 && distinct === 5) {
+        if ((counts[1] && counts[2] && counts[3] && counts[4] && counts[5]) || (counts[2] && counts[3] && counts[4] && counts[5] && counts[6])) return true;
+    }
+    if (rules.enable4Straight && totalDice === 4 && distinct === 4) {
+        const has1234 = (counts[1] && counts[2] && counts[3] && counts[4]);
+        const has2345 = (counts[2] && counts[3] && counts[4] && counts[5]);
+        const has3456 = (counts[3] && counts[4] && counts[5] && counts[6]);
+        if (has1234 || has2345 || has3456) return true;
+    }
     for (let face = 1; face <= 6; face++) {
         const c = counts[face] || 0;
         if (c > 0) {
@@ -410,6 +400,23 @@ class FarkleClient {
                     this.dice3D.updateDiceMaterials();
                 }
             });
+        }
+    }
+
+    initSimpleBackground() {
+        const container = document.getElementById('bg-dice-container');
+        if (!container) return;
+
+        // Simple ambient decoration: create a few floating dice icons
+        for (let i = 0; i < 15; i++) {
+            const dot = document.createElement('div');
+            dot.style.position = 'absolute';
+            dot.style.width = '2px';
+            dot.style.height = '2px';
+            dot.style.background = 'rgba(255,255,255,0.1)';
+            dot.style.left = Math.random() * 100 + '%';
+            dot.style.top = Math.random() * 100 + '%';
+            container.appendChild(dot);
         }
     }
 
