@@ -160,8 +160,11 @@ class FarkleClient {
             // Check if running in iframe (Discord env) - simplistic check
             if (window.self === window.top && !window.location.search.includes('frame_id')) {
                 this.debugLog("Not in Discord (Standalone). Using Random Name.");
+                console.log('[WELCOME-TRIGGER] In standalone mode, playerName:', this.playerName);
                 // Show welcome screen anyway for testing
+                console.log('[WELCOME-TRIGGER] Setting timeout to show welcome');
                 setTimeout(() => {
+                    console.log('[WELCOME-TRIGGER] Timeout fired, calling showWelcome');
                     this.showWelcome(this.playerName, null, null);
                 }, 500);
                 return;
