@@ -78,7 +78,7 @@ import 'dotenv/config';
 // Note: dotenv config is loaded here, ensuring env vars are available
 
 app.post('/api/token', async (req, res) => {
-    const { code } = req.body;
+    const { code, redirectUri } = req.body;
 
     // Quick return for dev/mock mode
     if (code === 'mock_code') return res.json({ access_token: 'mock', user: { id: 'mock', username: 'MockUser', global_name: 'Mock User' } });
@@ -95,13 +95,8 @@ app.post('/api/token', async (req, res) => {
             client_secret: process.env.DISCORD_CLIENT_SECRET || process.env.DISCORD_SECRET,
             grant_type: 'authorization_code',
             code,
-            // IMPORTANT: In embedded apps, redirect_uri usually needs to match 
-            // where the iframe is hosted. 
-            // For strict mode, use your configured endpoint in Dev Portal.
-            // We often infer it from the host to handle tunnel urls automatically.
-            // However, for embedded apps, usually it's null or specific.
-            // If this fails, user needs to check their Dev Portal "Redirects".
-            redirect_uri: `https://${req.headers.host}`
+            // Match the redirect_uri used in the client
+            redirect_uri: redirectUri || `https://${req.headers.host}`
             // Warning: If running mainly in Discord Activity, redirect_uri might need to be specific URL configured in portal.
             // If it fails with 'invalid_grant', check this.
         });

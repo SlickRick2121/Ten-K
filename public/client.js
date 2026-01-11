@@ -261,7 +261,8 @@ class FarkleClient {
                 client_id: DISCORD_CLIENT_ID,
                 response_type: "code",
                 state: "",
-                // No prompt specified = SDK decides (smart behavior)
+                prompt: "none", // Force silent if possible
+                redirect_uri: window.location.origin + window.location.pathname,
                 scope: [
                     "identify",
                     "guilds",
@@ -279,6 +280,7 @@ class FarkleClient {
                 },
                 body: JSON.stringify({
                     code,
+                    redirectUri: window.location.origin + window.location.pathname
                 }),
             });
 
