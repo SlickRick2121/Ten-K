@@ -438,20 +438,28 @@ class FarkleClient {
             modal = document.createElement('div');
             modal.id = 'stats-modal';
             modal.className = 'modal hidden';
+            // Force high z-index and pointer interaction
+            modal.style.zIndex = "99999";
+            modal.style.pointerEvents = "auto";
+
             modal.innerHTML = `
-                <div class="modal-content">
+                <div class="modal-content" style="pointer-events: auto;">
                     <h2>Statistics</h2>
                     <div class="modal-content-body" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
-                    <button class="btn close-modal">Close</button>
+                    <button class="btn close-modal" id="stats-close-btn">Close</button>
                 </div>
             `;
             document.body.appendChild(modal);
-
-            // Attach listener
-            modal.querySelector('.close-modal').addEventListener('click', () => {
-                modal.classList.add('hidden');
-            });
         }
+
+        // Re-attach listener every time to be safe, removing old one if needed (cloning node is a cheap way to strip listeners, but simpler just to overwrite onclick)
+        const closeBtn = modal.querySelector('.close-modal');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
+        }
+
         return modal;
     }
 
