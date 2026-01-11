@@ -29,7 +29,7 @@ const io = new Server(httpServer, {
     }
 });
 
-app.get('/admin', (req, res) => res.redirect('/admin/'));
+
 
 app.use(express.static(join(__dirname, 'public')));
 app.use('/libs', express.static(join(__dirname, 'node_modules')));
