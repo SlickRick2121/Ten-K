@@ -444,6 +444,32 @@ class GameState {
         }
     }
 
+    async endGame() {
+        // Determine winner based on highest score
+        let winner = this.players[0];
+        for (const p of this.players) {
+            if (p.score > winner.score) winner = p;
+        }
+
+        this.gameStatus = 'finished';
+        this.winner = winner;
+
+        // Record Stats for all players
+        for (const p of this.players) {
+            const isWin = (p.id === winner.id);
+            try {
+                if (p.dbId) {
+                    await db.recordGameEnd(p.dbId, isWin, p.score, 0, p.farkles || 0);
+                }
+            } catch (e) { console.error("Stats Error", e); }
+        }
+
+        io.to(this.roomCode).emit('game_over', {
+            winner: winner.name,
+            scores: this.players.map(p => ({ name: p.name, score: p.score }))
+        });
+    }
+
     checkWinCondition() {
         const p = this.players[this.currentPlayerIndex];
         const winTarget = this.rules.winScore || 10000;
@@ -723,11 +749,10 @@ io.on('connection', (socket) => {
             // So spectators are anonymous in chat unless `socket.handshake.auth.name` or similar was persisted.
             // socket.handshake.auth.name is sent by client on connection!
             senderName = socket.handshake.auth.name || "Spectator";
-        } else {
             senderName = socket.handshake.auth.name || "Unknown";
         }
 
-        // Sanitize? 
+        // Sanitize?
         if (!message || message.trim().length === 0) return;
         const safeMessage = message.substring(0, 200);
 
@@ -737,6 +762,13 @@ io.on('connection', (socket) => {
             isSystem: false
         });
     });
+
+    // Assuming this endGame method is part of the GameState class,
+    // but since the GameState class definition is not provided in the snippet,
+    // this block is placed here as per the user's instruction,
+    // acknowledging it might be intended for a different file or class context.
+    // If GameState class is in this file, it should be moved there.
+
 
     socket.on('restart', ({ roomCode }) => {
         const game = games.get(roomCode);
@@ -909,6 +941,22 @@ function getRoomList() {
         rulesSummary: g.rules.description || 'Standard'
     }));
 }
+
+// API Routes for Stats
+app.get('/api/stats/:id', async (req, res) => {
+    try {
+        const user = await db.getUser(req.params.id);
+        if (user) res.json(user);
+        else res.status(404).json({ error: "User not found" });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        const board = await db.getLeaderboard();
+        res.json(board);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+});
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {

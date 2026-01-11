@@ -252,6 +252,9 @@ class FarkleClient {
             });
         }
 
+        // Stats Buttons (New)
+        this.initStatsUI();
+
         // Color Themes
         const themeBtns = document.querySelectorAll('.theme-btn');
         themeBtns.forEach(btn => {
@@ -285,6 +288,112 @@ class FarkleClient {
                 }
             });
         }
+    }
+
+    initStatsUI() {
+        // Find or create buttons in main menu
+        const modeSelection = document.getElementById('mode-selection');
+        if (!modeSelection) return;
+
+        // Container for stats buttons
+        let statsRow = document.getElementById('stats-row');
+        if (!statsRow) {
+            statsRow = document.createElement('div');
+            statsRow.id = 'stats-row';
+            statsRow.style.display = 'flex';
+            statsRow.style.gap = '10px';
+            statsRow.style.justifyContent = 'center';
+            statsRow.style.marginTop = '2rem';
+            modeSelection.appendChild(statsRow);
+        }
+        statsRow.innerHTML = ''; // Clear to prevent dupes
+
+        const lbBtn = document.createElement('button');
+        lbBtn.className = 'btn secondary small';
+        lbBtn.innerHTML = '🏆 Leaderboard';
+        lbBtn.onclick = () => this.showLeaderboard();
+
+        const myStatsBtn = document.createElement('button');
+        myStatsBtn.className = 'btn secondary small';
+        myStatsBtn.innerHTML = '📊 My Stats';
+        myStatsBtn.onclick = () => this.showMyStats();
+
+        statsRow.appendChild(lbBtn);
+        statsRow.appendChild(myStatsBtn);
+    }
+
+    async showLeaderboard() {
+        // Reuse or create modal
+        const modal = this.getStatsModal();
+        const content = modal.querySelector('.modal-content-body');
+        content.innerHTML = '<p>Loading...</p>';
+        modal.classList.remove('hidden');
+
+        try {
+            const res = await fetch('/api/leaderboard');
+            const data = await res.json();
+
+            let html = '<table style="width:100%; text-align:left;"><tr><th>Rank</th><th>Player</th><th>Wins</th><th>Score</th></tr>';
+            data.forEach((row, i) => {
+                html += `<tr>
+                    <td>#${i + 1}</td>
+                    <td style="display:flex; align-items:center; gap:5px;">
+                        ${row.avatar ? `<img src="https://cdn.discordapp.com/avatars/${row.id}/${row.avatar}.png" style="width:20px;height:20px;border-radius:50%">` : ''} 
+                        ${row.display_name}
+                    </td>
+                    <td>${row.wins}</td>
+                    <td>${Number(row.total_score).toLocaleString()}</td>
+                </tr>`;
+            });
+            html += '</table>';
+            content.innerHTML = html;
+        } catch (e) {
+            content.innerHTML = '<p>Error loading leaderboard</p>';
+        }
+    }
+
+    async showMyStats() {
+        const modal = this.getStatsModal();
+        const content = modal.querySelector('.modal-content-body');
+        content.innerHTML = '<p>Loading...</p>';
+        modal.classList.remove('hidden');
+
+        // We need our own DB ID.
+        // Currently we don't persist it in client explicitly, but assume auth via initDiscord
+        // If not authed, we can't show much.
+        // Assuming we rely on a stored 'farkle-db-id' if we start sending it, or we re-auth/check /api/users/@me?
+        // Actually, initDiscord sets 'farkle-username'.
+        // Let's rely on initDiscord flow to eventually save ID or similar?
+        // Or just say "Login to Discord first"
+
+        if (!this.discordSdk) {
+            content.innerHTML = "<p>Please play via Discord Activity or Link Account to view stats.</p>";
+            return;
+        }
+
+        // TODO: Pass user ID or fetch "me" from backend using the token if we stored it?
+        // Since we don't hold the token long-term in client (except maybe in memory),
+        // we might not actully know our ID here unless we saved it.
+        // Let's fetch it via a new 'api/me' endpoint or assume we saved it.
+        content.innerHTML = "<p>Stats feature pending User ID persistence update.</p>";
+    }
+
+    getStatsModal() {
+        let modal = document.getElementById('stats-modal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'stats-modal';
+            modal.className = 'modal hidden';
+            modal.innerHTML = `
+                <div class="modal-content">
+                    <h2>Statistics</h2>
+                    <div class="modal-content-body" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
+                    <button class="btn close-modal" onclick="document.getElementById('stats-modal').classList.add('hidden')">Close</button>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        return modal;
     }
 
     initHistory() {
