@@ -113,13 +113,22 @@ async function loadStats() {
 
 function renderStats(data) {
     document.getElementById('stat-active').textContent = data.activeUsers;
-    document.getElementById('stat-24h').textContent = data.hits24h;
-    document.getElementById('stat-total').textContent = data.totalHitsAllTime;
+    document.getElementById('stat-unique').textContent = data.uniqueVisitors || 0;
+    document.getElementById('stat-new-ret').textContent = `${data.newVisitors || 0}/${data.returningVisitors || 0}`;
+
+    // Top Device
+    const devices = data.deviceTypes || {};
+    const topDevice = Object.entries(devices).sort((a, b) => b[1] - a[1])[0]?.[0] || 'Desktop';
+    document.getElementById('stat-device').textContent = topDevice;
 
     if (!chartsInited) {
         initCharts();
         chartsInited = true;
     }
+
+    // Update Chart themes/colors
+    trafficChart.data.datasets[0].borderColor = '#00f2ff';
+    trafficChart.data.datasets[0].backgroundColor = 'rgba(0, 242, 255, 0.05)';
 
     // Traffic
     trafficChart.data.datasets[0].data = data.timeline;
