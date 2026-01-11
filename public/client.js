@@ -258,6 +258,7 @@ class FarkleClient {
             this.discordId = user.id;
 
             this.debugLog(`Authenticated as ${this.playerName}`);
+            console.log('[WELCOME] Calling showWelcome with:', this.playerName, user.avatar, user.id);
             this.showWelcome(this.playerName, user.avatar, user.id);
             this.identifyAnalytics(user);
 
@@ -284,10 +285,16 @@ class FarkleClient {
     }
 
     showWelcome(name, avatar, id) {
+        console.log('[WELCOME] Function called:', { name, avatar, id });
+
         // Remove any existing welcome screen
         const existing = document.getElementById('welcome-overlay');
-        if (existing) existing.remove();
+        if (existing) {
+            console.log('[WELCOME] Removing existing overlay');
+            existing.remove();
+        }
 
+        console.log('[WELCOME] Creating new overlay');
         const overlay = document.createElement('div');
         overlay.id = 'welcome-overlay';
         overlay.style.cssText = `
@@ -333,13 +340,17 @@ class FarkleClient {
             </style>
         `;
 
+        console.log('[WELCOME] Appending overlay to body');
         document.body.appendChild(overlay);
+        console.log('[WELCOME] Overlay appended, setting timeout for fade out');
 
         // Fade out after delay
         setTimeout(() => {
+            console.log('[WELCOME] Fading out');
             overlay.style.opacity = '0';
             overlay.style.pointerEvents = 'none';
             setTimeout(() => {
+                console.log('[WELCOME] Removing overlay');
                 overlay.remove();
             }, 800);
         }, 3000);
