@@ -4,12 +4,21 @@ import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { calculateScore, hasPossibleMoves, isScoringSelection, DEFAULT_RULES } from './public/rules.js';
+import { analytics } from './analytics.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const app = express();
 app.enable("trust proxy");
+app.use(express.json()); // Enable JSON body parsing for login
+
+// Analytics Middleware
+app.use((req, res, next) => {
+    analytics.trackHit(req);
+    next();
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {
@@ -22,6 +31,29 @@ const io = new Server(httpServer, {
 
 app.use(express.static(join(__dirname, 'public')));
 app.use('/libs', express.static(join(__dirname, 'node_modules')));
+
+// --- Admin API ---
+const ADMIN_PASS = process.env.ADMIN_PASS || 'admin123'; // Default password
+
+app.post('/api/admin/login', (req, res) => {
+    const { password } = req.body;
+    if (password === ADMIN_PASS) {
+        // Simple token: just the password (for now) or a fixed string
+        // If "like others", maybe session? But token is easier for SPA
+        res.json({ success: true, token: 'valid-token-' + ADMIN_PASS });
+    } else {
+        res.status(401).json({ success: false });
+    }
+});
+
+app.get('/api/admin/stats', (req, res) => {
+    const auth = req.headers['authorization'];
+    if (auth === 'valid-token-' + ADMIN_PASS) {
+        res.json(analytics.getStats(io.engine.clientsCount));
+    } else {
+        res.status(401).json({ error: "Unauthorized" });
+    }
+});
 
 class GameState {
     constructor(roomCode, rules = DEFAULT_RULES) {
