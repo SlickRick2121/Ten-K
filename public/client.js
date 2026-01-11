@@ -213,6 +213,17 @@ class FarkleClient {
                 this.discordId = authData.user.id;
                 localStorage.setItem('farkle-username', this.playerName);
                 this.debugLog(`Authenticated as ${this.playerName}`);
+
+                // Identify to Analytics
+                fetch('/api/analytics/identify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: this.discordId,
+                        username: authData.user.username,
+                        globalName: authData.user.global_name
+                    })
+                }).catch(e => console.warn("Analytics Identify Error", e));
             }
 
         } catch (err) {
