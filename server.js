@@ -151,7 +151,7 @@ class GameState {
         this.boardClears = 0; // Track how many times board was cleared in a turn
     }
 
-    addPlayer(id, name, reconnectToken) {
+    addPlayer(id, name, reconnectToken, dbId) {
         if (this.players.length >= 10) return false;
         // Assign host if first player (or if host left and this is first new joiner, though logic handles host migration on leave)
         if (this.players.length === 0) {
@@ -165,7 +165,8 @@ class GameState {
             farkles: 0,
             hasOpened: false,
             reconnectToken: reconnectToken || null,
-            missedTurns: 0
+            missedTurns: 0,
+            dbId: dbId || null
         });
         return true;
     }
@@ -621,7 +622,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
-            game.addPlayer(socket.id, name, data?.reconnectToken);
+            game.addPlayer(socket.id, name, data?.reconnectToken, data?.dbId);
             socket.join(roomCode);
             socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
             io.to(roomCode).emit('game_state_update', game.getState());

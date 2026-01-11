@@ -211,6 +211,7 @@ class FarkleClient {
             if (authData.user) {
                 // Prioritize global_name, fallback to username on server-verified data
                 this.playerName = authData.user.global_name || authData.user.username;
+                this.discordId = authData.user.id;
                 localStorage.setItem('farkle-username', this.playerName);
                 this.debugLog(`Authenticated as ${this.playerName}`);
             }
@@ -220,6 +221,28 @@ class FarkleClient {
             this.debugLog(`Discord Auth Failed: ${err.message} - Using Default Name`);
             // Fallback is already set in constructor
         }
+    }
+
+    // ... skip to joinRoom ... 
+
+    joinRoom(roomCode, asSpectator = false, fromHistory = false) {
+        this.debugLog(`Joining ${roomCode} (${asSpectator ? 'Spectating' : 'Playing'})...`);
+
+        let finalName = this.playerName;
+        localStorage.setItem('farkle-username', finalName);
+        sessionStorage.setItem('farkle-room-code', roomCode);
+
+        if (!fromHistory) {
+            history.pushState({ view: 'game', roomCode: roomCode }, "", `?room=${roomCode}`);
+        }
+
+        this.socket.emit('join_game', {
+            roomCode: roomCode,
+            spectator: asSpectator,
+            reconnectToken: this.reconnectToken,
+            name: finalName,
+            dbId: this.discordId || null
+        });
     }
 
     async updateDiscordPresence(details, state) {
@@ -768,19 +791,7 @@ class FarkleClient {
         });
     }
 
-    joinRoom(roomCode, asSpectator = false, fromHistory = false) {
-        this.debugLog(`Joining ${roomCode} (${asSpectator ? 'Spectating' : 'Playing'})...`);
 
-        let finalName = this.playerName;
-        localStorage.setItem('farkle-username', finalName);
-        sessionStorage.setItem('farkle-room-code', roomCode);
-
-        if (!fromHistory) {
-            history.pushState({ view: 'game', roomCode: roomCode }, "", `?room=${roomCode}`);
-        }
-
-        this.socket.emit('join_game', { roomCode: roomCode, spectator: asSpectator, reconnectToken: this.reconnectToken, name: finalName });
-    }
 
     joinGame() {
         this.debugLog(`Joining Game...`);
