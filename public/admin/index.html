@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Farkle Analytics</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Inter:wght@400;600&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -30,16 +31,23 @@
 
         <div class="stats-grid">
             <div class="card stat-card">
-                <h3>Active Users</h3>
+                <div class="label-container">
+                    <h3>Active Now</h3>
+                    <div class="trend">Live</div>
+                </div>
                 <div class="value" id="stat-active">0</div>
             </div>
             <div class="card stat-card">
-                <h3>Hits (24h)</h3>
-                <div class="value" id="stat-24h">0</div>
+                <h3>Unique Visitors (24h)</h3>
+                <div class="value" id="stat-unique">0</div>
             </div>
             <div class="card stat-card">
-                <h3>Total Hits</h3>
-                <div class="value" id="stat-total">0</div>
+                <h3>New vs Returning</h3>
+                <div class="value" id="stat-new-ret">0/0</div>
+            </div>
+            <div class="card stat-card">
+                <h3>Top Device</h3>
+                <div class="value" id="stat-device">Desktop</div>
             </div>
         </div>
 
