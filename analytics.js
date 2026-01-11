@@ -47,6 +47,11 @@ export const analytics = {
         const uaParser = new UAParser(uaString);
         const geo = geoip.lookup(ip);
 
+        // Log for debugging
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('[ANALYTICS] IP:', ip, 'Geo:', geo);
+        }
+
         // Device type detection
         const device = uaParser.getDevice();
         let deviceType = 'Desktop';
