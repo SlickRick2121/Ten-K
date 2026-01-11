@@ -54,6 +54,7 @@ body {
     margin-bottom: 2rem;
     background: linear-gradient(to right, #00f2ff, #8b5cf6);
     -webkit-background-clip: text;
+    background-clip: text;
     -webkit-text-fill-color: transparent;
 }
 

@@ -373,7 +373,7 @@ class FarkleClient {
             transition: opacity 0.8s ease-out;
             color: white;
             font-family: 'Outfit', sans-serif;
-            backdrop-filter: blur(10px);
+            backdrop-filter: blur(4px);
         `;
 
         const avatarUrl = avatar && id
@@ -1701,16 +1701,22 @@ class Dice3DManager {
     }
     animate() {
         requestAnimationFrame(() => this.animate());
+
+        // Performance optimization: only render and simulate if running OR we need to render one final frame
         if (this.isRunning) {
-            // Speed up physics in speed mode
-            const timeStep = this.isSpeed ? 1 / 30 : 1 / 60;
-            // actually faster simulation requires larger timestep? 
-            // No, just normal step.
             this.world.step(1 / 60);
-            this.diceObjects.forEach(obj => { obj.mesh.position.copy(obj.body.position); obj.mesh.quaternion.copy(obj.body.quaternion); });
+            this.diceObjects.forEach(obj => {
+                obj.mesh.position.copy(obj.body.position);
+                obj.mesh.quaternion.copy(obj.body.quaternion);
+            });
             this.checkStopped();
+            this.renderer.render(this.scene, this.camera);
+            this.needsRender = true;
+        } else if (this.needsRender) {
+            // Render one final frame after stopping to ensure everything is aligned
+            this.renderer.render(this.scene, this.camera);
+            this.needsRender = false;
         }
-        this.renderer.render(this.scene, this.camera);
     }
     updateDiceMaterials() {
         // Re-apply materials to all existing dice based on current theme
