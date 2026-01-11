@@ -140,6 +140,13 @@ app.post('/api/token', async (req, res) => {
     }
 });
 
+app.post('/api/analytics/identify', (req, res) => {
+    const { userId, username, globalName } = req.body;
+    // Log identification for analytics
+    analytics.trackEvent('identify', { userId, username, globalName });
+    res.json({ success: true });
+});
+
 class GameState {
     constructor(roomCode, rules = DEFAULT_RULES) {
         this.roomCode = roomCode;
