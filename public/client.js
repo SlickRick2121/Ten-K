@@ -16,13 +16,9 @@ console.log("Farkle Client Execution Started");
 
 class FarkleClient {
     constructor() {
-        this.debugLog("FarkleClient constructor start");
+        console.log("FarkleClient constructor start");
 
-        // Create on-screen debug panel
-        this.createDebugPanel();
-        this.addDebugMessage('🚀 FarkleClient initializing...');
-
-        // Immediate UI feedback
+        // Default to random player name until Discord loads
         const loadingContainer = document.getElementById('connection-debug');
         if (loadingContainer) {
             loadingContainer.textContent = "Script Running...";
@@ -136,7 +132,12 @@ class FarkleClient {
             try { this.initListeners(); } catch (e) { console.error("Listeners Init Failed", e); }
             try { this.initSettings(); } catch (e) { console.error("Settings Init Failed", e); }
             try { this.initHistory(); } catch (e) { console.error("History Init Failed", e); }
-            this.debugLog("Modules initialized");
+
+            // Create debug panel
+            this.createDebugPanel();
+            this.addDebugMessage('🚀 Modules initialized');
+
+            console.log("Modules initialized");
             // Fall through to Discord Init immediately
 
 
