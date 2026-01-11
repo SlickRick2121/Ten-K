@@ -215,17 +215,40 @@ class FarkleClient {
             await this.discordSdk.ready();
 
             // Authorize with Discord Client
-            const { code } = await this.discordSdk.commands.authorize({
-                client_id: DISCORD_CLIENT_ID,
-                response_type: "code",
-                state: "",
-                prompt: "none", // Try to avoid prompt if possible
-                scope: [
-                    "identify",
-                    "guilds",
-                    "guilds.members.read"
-                ],
-            });
+            // Try explicit silent first. If it fails, we might need a prompt (rare for embedded apps but possible).
+            // Actually, for embedded apps, 'prompt: none' is standard for automatic auth,
+            // but if user hasn't authorized, it throws.
+            // Better strategy: Try silent, if catch, try consent.
+
+            let authResponse;
+            try {
+                authResponse = await this.discordSdk.commands.authorize({
+                    client_id: DISCORD_CLIENT_ID,
+                    response_type: "code",
+                    state: "",
+                    prompt: "none",
+                    scope: [
+                        "identify",
+                        "guilds",
+                        "guilds.members.read"
+                    ],
+                });
+            } catch (e) {
+                console.warn("Silent auth failed, trying with consent prompt...", e);
+                authResponse = await this.discordSdk.commands.authorize({
+                    client_id: DISCORD_CLIENT_ID,
+                    response_type: "code",
+                    state: "",
+                    prompt: "consent",
+                    scope: [
+                        "identify",
+                        "guilds",
+                        "guilds.members.read"
+                    ],
+                });
+            }
+
+            const { code } = authResponse;
 
             // Exchange code for token via backend
             const response = await fetch("/api/token", {
@@ -284,16 +307,25 @@ class FarkleClient {
 
     showWelcome(name, avatar, id) {
         const logoContainer = document.querySelector('#setup-modal .logo-container');
-        if (logoContainer && !document.getElementById('welcome-msg')) {
-            const welcome = document.createElement('div');
+        // If message exists, update it or create new
+        let welcome = document.getElementById('welcome-msg');
+
+        if (!welcome && logoContainer) {
+            welcome = document.createElement('div');
             welcome.id = 'welcome-msg';
             welcome.style.textAlign = 'center';
-            welcome.style.marginBottom = '1rem';
-            welcome.innerHTML = `
-                ${avatar ? `<img src="https://cdn.discordapp.com/avatars/${id}/${avatar}.png" style="width:40px;height:40px;border-radius:50%;vertical-align:middle;margin-right:10px;border:2px solid var(--primary);">` : ''}
-                <span style="font-size:1.2rem; color:var(--primary);">Welcome, ${name}!</span>
-             `;
+            welcome.style.marginBottom = '1.5rem';
+            welcome.style.animation = 'fadeIn 0.5s ease-in';
             logoContainer.parentNode.insertBefore(welcome, logoContainer.nextSibling);
+        }
+
+        if (welcome) {
+            welcome.innerHTML = `
+                <div style="display:inline-flex; align-items:center; background:rgba(255,255,255,0.05); padding: 8px 16px; border-radius: 30px; border: 1px solid rgba(255,255,255,0.1); box-shadow: 0 4px 15px rgba(0,0,0,0.2);">
+                    ${avatar && id ? `<img src="https://cdn.discordapp.com/avatars/${id}/${avatar}.png" style="width:32px;height:32px;border-radius:50%;margin-right:10px;border:2px solid var(--primary);">` : '<span style="font-size:1.5rem; margin-right:8px;">👋</span>'}
+                    <span style="font-size:1.1rem; font-weight:600; color:var(--text-main);">Welcome, <span style="color:var(--primary);">${name}</span></span>
+                </div>
+            `;
         }
     }
 
@@ -503,7 +535,7 @@ class FarkleClient {
             `;
         } catch (e) {
             console.error(e);
-            content.innerHTML = "<p>No stats found yet. Play a game to track stats!</p>";
+            content.innerHTML = `<p>No stats found yet. Play a game to track stats!</p><p style="font-size:0.75rem; color:#666; margin-top:10px;">Debug ID: ${this.discordId || "Not Authenticated"}</p>`;
         }
     }
 
