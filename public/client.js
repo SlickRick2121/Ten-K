@@ -12,15 +12,15 @@ import { calculateScore, isScoringSelection } from './rules.js';
 
 // Global reference
 const DISCORD_CLIENT_ID = "1455067365694771364"; // Replace with your Application ID
-console.log("Farkle Client Execution Started");
+
 
 class FarkleClient {
     constructor() {
-        console.log("FarkleClient constructor start");
+
 
         // Create on-screen debug panel
         this.createDebugPanel();
-        this.addDebugMessage('🚀 FarkleClient initializing...');
+        this.addDebugMessage('✨ Farkle Engine Starting...');
 
         // Default to random player name until Discord loads
         const loadingContainer = document.getElementById('connection-debug');
@@ -95,7 +95,8 @@ class FarkleClient {
                 roomDisplay: document.getElementById('room-display'),
                 spectatorDisplay: document.getElementById('spectator-display'),
                 gameInfoBar: document.getElementById('game-info-bar'),
-                leaveText: document.getElementById('leave-text')
+                leaveText: document.getElementById('leave-text'),
+                chatNotifications: document.getElementById('chat-notifications')
             };
 
             // Hook up start button
@@ -140,9 +141,8 @@ class FarkleClient {
 
             // Create debug panel
             this.createDebugPanel();
-            this.addDebugMessage('🚀 Modules initialized');
+            this.addDebugMessage('✅ Core Modules Ready');
 
-            console.log("Modules initialized");
             // Fall through to Discord Init immediately
 
 
@@ -186,10 +186,9 @@ class FarkleClient {
                 // Use local path as CDN might be blocked by Discord CSP
                 const module = await import("/libs/@discord/embedded-app-sdk/output/index.mjs");
                 DiscordSDK = module.DiscordSDK;
-                this.addDebugMessage('✅ Discord SDK Loaded');
+                this.addDebugMessage('✅ Discord SDK Connected');
             } catch (importErr) {
-                this.debugLog(`SDK Import Failed: ${importErr.message}`);
-                this.addDebugMessage(`❌ SDK Import Failed: ${importErr.message}`);
+                this.addDebugMessage(`❌ Connection failed: ${importErr.message}`);
                 // Try fallback to unpkg if local fails, but local is preferred
                 try {
                     const fallback = await import("https://unpkg.com/@discord/embedded-app-sdk/output/index.mjs");
@@ -208,19 +207,12 @@ class FarkleClient {
             const savedToken = localStorage.getItem('farkle_auth_token');
             const savedUser = localStorage.getItem('farkle_user_data');
 
-            this.addDebugMessage(`📦 localStorage: token=${!!savedToken}, user=${!!savedUser}`);
-            console.log('[DISCORD-AUTH] localStorage check:', { hasToken: !!savedToken, hasUser: !!savedUser });
 
             if (savedToken && savedUser) {
-                this.addDebugMessage('✅ Found saved session, restoring...');
-                console.log('[DISCORD-AUTH] Found saved session, attempting restore');
                 try {
                     const user = JSON.parse(savedUser);
                     this.playerName = user.global_name || user.username;
                     this.discordId = user.id;
-                    this.debugLog(`Restored session for ${this.playerName}`);
-                    this.addDebugMessage(`✅ Restored: ${this.playerName}`);
-                    console.log('[DISCORD-AUTH] ✅ Restored from localStorage, calling showWelcome');
 
                     // Show Welcome
                     this.showWelcome(this.playerName, user.avatar, user.id);
@@ -229,18 +221,14 @@ class FarkleClient {
                     this.identifyAnalytics(user);
                     return;
                 } catch (e) {
-                    this.addDebugMessage(`❌ Session restore failed: ${e.message}`);
-                    console.warn("[DISCORD-AUTH] ❌ Invalid saved session", e);
                     localStorage.removeItem('farkle_auth_token');
                     localStorage.removeItem('farkle_user_data');
                 }
             } else {
-                this.addDebugMessage('⚠️ No saved session, doing full OAuth');
-                console.log('[DISCORD-AUTH] ⚠️ No saved session, proceeding with full OAuth');
             }
 
             // 2. Proceed with Discord SDK Auth if no session
-            this.addDebugMessage('🚀 Readying Discord SDK...');
+
 
             // Add a timeout to SDK ready
             const readyTimeout = new Promise((_, reject) =>
@@ -249,14 +237,12 @@ class FarkleClient {
 
             try {
                 await Promise.race([this.discordSdk.ready(), readyTimeout]);
-                this.addDebugMessage('✅ SDK Ready!');
             } catch (readyErr) {
-                this.addDebugMessage(`❌ SDK Ready failed: ${readyErr.message}`);
+                this.addDebugMessage(`❌ SDK Ready failed`);
                 throw readyErr;
             }
 
-            this.addDebugMessage(`🔗 URL: ${window.location.href.split('?')[0]}`);
-            this.addDebugMessage('🔑 Authorizing...');
+
             // Authorize with Discord Client
             // Removing prompt: none and redirect_uri to let Discord use its defaults
             // and avoid RPC bridge rejection issues.
@@ -270,9 +256,7 @@ class FarkleClient {
                     "guilds.members.read"
                 ],
             });
-            this.addDebugMessage('✅ Authorization code received');
 
-            this.addDebugMessage('📡 Exchanging code for token...');
             // Exchange code for token via backend
             const response = await fetch("/api/token", {
                 method: "POST",
@@ -292,7 +276,6 @@ class FarkleClient {
             const { access_token, user } = await response.json();
             this.addDebugMessage(`✅ Token received for ${user.username}`);
 
-            this.addDebugMessage('🔗 Authenticating SDK...');
             // Authenticate with Discord SDK (for channel interactions if needed later)
             const auth = await this.discordSdk.commands.authenticate({
                 access_token,
@@ -301,22 +284,17 @@ class FarkleClient {
             if (auth == null) {
                 throw new Error("Authenticate command failed via SDK");
             }
-            this.addDebugMessage('✅ SDK Authenticated');
+            this.addDebugMessage(`✅ Identity Verified: ${user.username}`);
 
-            // Success! Store session.
             try {
                 localStorage.setItem('farkle_auth_token', access_token);
                 localStorage.setItem('farkle_user_data', JSON.stringify(user));
-                this.addDebugMessage('💾 Session saved to localStorage');
             } catch (lsErr) {
-                this.addDebugMessage(`⚠️ localStorage save failed: ${lsErr.message}`);
+                console.warn("Storage failed", lsErr);
             }
 
             this.playerName = user.global_name || user.username;
             this.discordId = user.id;
-
-            this.debugLog(`Authenticated as ${this.playerName}`);
-            this.addDebugMessage(`🎉 Welcome, ${this.playerName}!`);
 
             console.log('[WELCOME] Calling showWelcome with:', this.playerName, user.avatar, user.id);
             this.showWelcome(this.playerName, user.avatar, user.id);
@@ -324,8 +302,6 @@ class FarkleClient {
 
         } catch (err) {
             console.error("Discord Auth Failed/Cancelled", err);
-            this.addDebugMessage(`❌ Auth Error: ${err.message}`);
-            this.debugLog(`Discord Auth Failed: ${err.message} - Using Default Name`);
             // Fallback to random guest if auth fails
             if (!this.playerName) {
                 // Fallback is already set in constructor
@@ -830,7 +806,7 @@ class FarkleClient {
 
     initSocketEvents() {
         this.socket.on('connect', () => {
-            this.debugLog(`Connected!`);
+            this.addDebugMessage('📡 Uplink Established');
             this.showFeedback("Connected!", "success");
 
             const modeSelection = document.getElementById('mode-selection');
@@ -876,6 +852,7 @@ class FarkleClient {
 
             // Update UI
             if (this.ui.roomDisplay) this.ui.roomDisplay.textContent = `Table: ${this.roomCode}`;
+            this.addDebugMessage(`🎮 Session Active: ${this.roomCode}`);
             if (this.ui.gameInfoBar) this.ui.gameInfoBar.style.display = 'flex';
             if (this.ui.leaveText) this.ui.leaveText.style.display = 'inline';
             if (this.ui.leaveBtn) this.ui.leaveBtn.style.width = 'auto';
@@ -1457,6 +1434,51 @@ class FarkleClient {
         }
         this.ui.chatMessages.appendChild(msgDiv);
         this.ui.chatMessages.scrollTop = this.ui.chatMessages.scrollHeight;
+
+        // iOS Style Notification
+        if (!data.isSystem && data.sender !== this.playerName) {
+            const isPanelHidden = !this.ui.chatPanel || this.ui.chatPanel.classList.contains('hidden');
+            if (isPanelHidden) {
+                this.showChatNotification(data);
+            }
+        }
+    }
+
+    showChatNotification(data) {
+        if (!this.ui.chatNotifications) return;
+
+        const notif = document.createElement('div');
+        notif.className = 'chat-notification';
+
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        notif.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-author">${data.sender}</span>
+                <span class="notification-time">${now}</span>
+            </div>
+            <div class="notification-body">${data.message}</div>
+        `;
+
+        notif.onclick = () => {
+            if (this.ui.chatPanel) {
+                this.ui.chatPanel.classList.remove('hidden');
+                this.ui.chatInput.focus();
+            }
+            notif.classList.add('outgoing');
+            setTimeout(() => notif.remove(), 400);
+        };
+
+        this.ui.chatNotifications.appendChild(notif);
+        this.sounds.play('msg');
+
+        // Auto remove
+        setTimeout(() => {
+            if (notif.parentElement) {
+                notif.classList.add('outgoing');
+                setTimeout(() => notif.remove(), 400);
+            }
+        }, 5000);
     }
 
     createDebugPanel() {
@@ -1550,6 +1572,7 @@ class SoundManager {
             case 'success': this.playChord([523.25, 659.25, 783.99], 0.4); break;
             case 'hot_dice': this.playArp([880, 1100, 1320, 1760], 0.1); break;
             case 'menu_open': this.playSweep(200, 600, 0.2, 'sine'); break;
+            case 'msg': this.playChord([659.25, 783.99], 0.15, 0.5); break;
         }
     }
 
