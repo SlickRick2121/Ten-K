@@ -476,7 +476,7 @@ class FarkleClient {
             });
         }
 
-        this.initStatsUI();
+        // Settings UI initialization complete
 
         // Felt Color (Table)
         const feltBtnGroup = document.querySelectorAll('.theme-options .theme-btn[data-theme]');
