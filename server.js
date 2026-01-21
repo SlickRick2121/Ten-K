@@ -155,20 +155,15 @@ app.get('/api/access/auth/discord', (req, res) => {
     // Priority: .env > Dynamic Detection
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
     if (!redirectUri) {
-        let host = req.get('x-forwarded-host') || req.get('host');
-        let protocol = (req.get('x-forwarded-proto') === 'https') ? 'https' : 'http';
+        const host = req.get('x-forwarded-host') || req.get('host') || '';
+        const protocol = 'https';
+        let targetHost = 'farkle.velarixsolutions.nl';
 
-        if (host.includes('velarixsolutions.nl')) {
-            host = 'farkle.velarixsolutions.nl';
-            protocol = 'https';
-        } else if (host.includes('veroe.space')) {
-            host = 'veroe.space';
-            protocol = 'https';
-        } else if (host.includes('up.railway.app') || host.includes('farkle')) {
-            host = 'farkle.velarixsolutions.nl';
-            protocol = 'https';
+        if (host.includes('veroe.space')) {
+            targetHost = 'veroe.space';
         }
-        redirectUri = `${protocol}://${host}/api/access/auth/discord/callback`;
+
+        redirectUri = `${protocol}://${targetHost}/api/access/auth/discord/callback`;
     }
 
     console.log(`[Auth] Redirecting to Discord. Final URI: ${redirectUri}`);
@@ -187,20 +182,15 @@ app.get('/api/access/auth/discord/callback', async (req, res) => {
 
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
     if (!redirectUri) {
-        let host = req.get('x-forwarded-host') || req.get('host');
-        let protocol = (req.get('x-forwarded-proto') === 'https') ? 'https' : 'http';
+        const host = req.get('x-forwarded-host') || req.get('host') || '';
+        const protocol = 'https';
+        let targetHost = 'farkle.velarixsolutions.nl';
 
-        if (host.includes('velarixsolutions.nl')) {
-            host = 'farkle.velarixsolutions.nl';
-            protocol = 'https';
-        } else if (host.includes('veroe.space')) {
-            host = 'veroe.space';
-            protocol = 'https';
-        } else if (host.includes('up.railway.app') || host.includes('farkle')) {
-            host = 'farkle.velarixsolutions.nl';
-            protocol = 'https';
+        if (host.includes('veroe.space')) {
+            targetHost = 'veroe.space';
         }
-        redirectUri = `${protocol}://${host}/api/access/auth/discord/callback`;
+
+        redirectUri = `${protocol}://${targetHost}/api/access/auth/discord/callback`;
     }
     console.log(`[Auth] Callback Received. URI used for exchange: ${redirectUri}`);
 
