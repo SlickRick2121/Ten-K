@@ -102,20 +102,13 @@ app.post('/api/token', async (req, res) => {
     }
 
     try {
-        // 1. Exchange Code for Access Token
-        const paramsData = {
+        const params = new URLSearchParams({
             client_id: process.env.DISCORD_CLIENT_ID || '1455067365694771364',
             client_secret: secret,
             grant_type: 'authorization_code',
-            code
-        };
-
-        // Only include redirect_uri if provided by client or specifically needed
-        if (redirectUri) {
-            paramsData.redirect_uri = redirectUri;
-        }
-
-        const params = new URLSearchParams(paramsData);
+            code,
+            redirect_uri: redirectUri
+        });
 
         const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
             method: 'POST',
@@ -124,31 +117,87 @@ app.post('/api/token', async (req, res) => {
         });
 
         const tokenData = await tokenResponse.json();
+        if (!tokenData.access_token) throw new Error("Auth failed");
 
-        if (!tokenData.access_token) {
-            console.error("Token Exchange Failed:", tokenData);
-            return res.status(400).json({ error: 'Failed to exchange token', details: tokenData });
-        }
-
-        // 2. Fetch User Profile
         const userResponse = await fetch('https://discord.com/api/users/@me', {
             headers: { authorization: `Bearer ${tokenData.access_token}` },
         });
         const userData = await userResponse.json();
 
         // 3. Upsert User into Database
-        await db.upsertUser(userData);
+        const { database } = await import('./db.js');
+        await database.upsertUser(userData);
 
-        // Return everything to frontend
         res.json({
             access_token: tokenData.access_token,
-            user: userData,
-            scopes: tokenData.scope ? tokenData.scope.split(' ') : []
+            user: userData
         });
 
     } catch (err) {
-        console.error("Auth Error:", err);
+        console.error("RPC Auth Error:", err);
         res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
+// Web Discord Auth Routes
+app.get('/api/access/auth/discord', (req, res) => {
+    const clientId = process.env.DISCORD_CLIENT_ID || '1455067365694771364';
+    const redirectUri = 'https://farkle.velarixsolutions.nl/api/access/auth/discord/callback';
+    const scope = encodeURIComponent('identify guilds guilds.members.read');
+
+    const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
+    res.redirect(url);
+});
+
+app.get('/api/access/auth/discord/callback', async (req, res) => {
+    const { code } = req.query;
+    if (!code) return res.send("Auth failed: No code");
+
+    const secret = process.env.DISCORD_CLIENT_SECRET;
+    const clientId = process.env.DISCORD_CLIENT_ID || '1455067365694771364';
+    const redirectUri = 'https://farkle.velarixsolutions.nl/api/access/auth/discord/callback';
+
+    try {
+        const params = new URLSearchParams({
+            client_id: clientId,
+            client_secret: secret,
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: redirectUri
+        });
+
+        const tokenResponse = await fetch('https://discord.com/api/oauth2/token', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params,
+        });
+
+        const tokenData = await tokenResponse.json();
+        if (!tokenData.access_token) throw new Error("Token exchange failed");
+
+        const userResponse = await fetch('https://discord.com/api/users/@me', {
+            headers: { authorization: `Bearer ${tokenData.access_token}` },
+        });
+        const userData = await userResponse.json();
+
+        // Store user in DB
+        const { database } = await import('./db.js');
+        await database.upsertUser(userData);
+
+        // Send back a script that passes the user data to the opener and closes the popup
+        res.send(`
+            <script>
+                window.opener.postMessage({
+                    type: 'DISCORD_AUTH_SUCCESS',
+                    token: "${tokenData.access_token}",
+                    user: ${JSON.stringify(userData)}
+                }, "*");
+                window.close();
+            </script>
+        `);
+    } catch (err) {
+        console.error("Web Auth Callback Error:", err);
+        res.status(500).send("Authentication failed");
     }
 });
 

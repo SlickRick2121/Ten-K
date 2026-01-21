@@ -108,9 +108,11 @@ class FarkleClient {
                 volumeSlider: document.getElementById('volume-slider'),
                 muteBtn: document.getElementById('mute-btn'),
                 volumeIcon: document.getElementById('volume-icon'),
-                statsBtn: document.getElementById('stats-btn'),
                 statsModal: document.getElementById('stats-modal'),
-                statsContent: document.getElementById('stats-content')
+                statsContent: document.getElementById('stats-content'),
+                webAuthSection: document.getElementById('web-auth-section'),
+                discordLoginBtn: document.getElementById('discord-login-btn'),
+                guestLoginBtn: document.getElementById('guest-login-btn')
             };
 
             // Hook up start button
@@ -187,14 +189,28 @@ class FarkleClient {
         try {
             // Check if running in iframe (Discord env) - simplistic check
             if (window.self === window.top && !window.location.search.includes('frame_id')) {
-                this.debugLog("Not in Discord (Standalone). Using Random Name.");
-                console.log('[WELCOME-TRIGGER] In standalone mode, playerName:', this.playerName);
-                // Show welcome screen anyway for testing
-                console.log('[WELCOME-TRIGGER] Setting timeout to show welcome');
-                setTimeout(() => {
-                    console.log('[WELCOME-TRIGGER] Timeout fired, calling showWelcome');
-                    this.showWelcome(this.playerName, null, null);
-                }, 500);
+                this.debugLog("Standalone Mode. Checking auth...");
+
+                // Show Web Auth Section if no session
+                const savedToken = localStorage.getItem('farkle_auth_token');
+                const savedUser = localStorage.getItem('farkle_user_data');
+
+                if (!savedToken || !savedUser) {
+                    if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'block';
+                    if (this.ui.connectionDebug) this.ui.connectionDebug.style.display = 'none';
+                } else {
+                    try {
+                        const user = JSON.parse(savedUser);
+                        this.playerName = user.global_name || user.username;
+                        this.discordId = user.id;
+                        this.showWelcome(this.playerName, user.avatar, user.id);
+                        this.identifyAnalytics(user);
+                        if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
+                    } catch (e) {
+                        localStorage.removeItem('farkle_auth_token');
+                        localStorage.removeItem('farkle_user_data');
+                    }
+                }
                 return;
             }
 
@@ -783,7 +799,52 @@ class FarkleClient {
         this.initSocketEvents();
     }
 
+    // --- Web Auth Helpers ---
+    loginWithDiscordWeb() {
+        const width = 500, height = 750;
+        const left = (window.innerWidth / 2) - (width / 2);
+        const top = (window.innerHeight / 2) - (height / 2);
+
+        const url = '/api/access/auth/discord';
+        window.open(url, 'discord_login', `width=${width},height=${height},top=${top},left=${left}`);
+
+        const onMessage = (event) => {
+            if (event.data?.type === 'DISCORD_AUTH_SUCCESS') {
+                window.removeEventListener('message', onMessage);
+                const { token, user } = event.data;
+
+                localStorage.setItem('farkle_auth_token', token);
+                localStorage.setItem('farkle_user_data', JSON.stringify(user));
+
+                this.playerName = user.global_name || user.username;
+                this.discordId = user.id;
+
+                if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
+                this.showWelcome(this.playerName, user.avatar, user.id);
+                this.identifyAnalytics(user);
+
+                // Show mode selection after login
+                const modeSelection = document.getElementById('mode-selection');
+                if (modeSelection) modeSelection.style.display = 'block';
+            }
+        };
+
+        window.addEventListener('message', onMessage);
+    }
+
     initListeners() {
+        // ...Existing listeners...
+        if (this.ui.discordLoginBtn) {
+            this.ui.discordLoginBtn.onclick = () => this.loginWithDiscordWeb();
+        }
+        if (this.ui.guestLoginBtn) {
+            this.ui.guestLoginBtn.onclick = () => {
+                if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
+                const modeSelection = document.getElementById('mode-selection');
+                if (modeSelection) modeSelection.style.display = 'block';
+                this.showWelcome(this.playerName, null, null);
+            };
+        }
         this.ui.rollBtn.addEventListener('click', () => {
             if (this.canInteract()) {
                 const selectedIds = Array.from(document.querySelectorAll('.die.selected'))
