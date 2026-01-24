@@ -42,9 +42,9 @@ const initDB = async () => {
                 FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
             );
         `);
-        console.log("Database initialized successfully.");
+        // Database initialized successfully.
     } catch (err) {
-        console.error("Failed to initialize database:", err);
+        // Failed to initialize database
     }
 };
 

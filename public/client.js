@@ -2,10 +2,7 @@ import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
 import * as CANNON from "cannon-es";
 
-// Removed GSAP imports as they were unused and causing loading issues
-import { calculateScore, isScoringSelection } from './rules.js';
 
-// Removed inlined rules in favor of shared module
 
 
 // Discord SDK integration refactored to use dynamic import
@@ -16,16 +13,6 @@ const DISCORD_CLIENT_ID = "1455067365694771364"; // Replace with your Applicatio
 
 class FarkleClient {
     constructor() {
-
-
-        // Create on-screen debug panel
-        try {
-            this.createDebugPanel();
-            this.addDebugMessage('✨ Farkle Engine Starting...');
-        } catch (e) {
-            console.error('Debug panel initialization failed:', e);
-        }
-
         // Default to random player name until Discord loads
         try {
             const loadingContainer = document.getElementById('connection-debug');
@@ -33,7 +20,7 @@ class FarkleClient {
                 loadingContainer.textContent = "Script Running...";
             }
         } catch (e) {
-            console.error('Loading container update failed:', e);
+            // Silently fail
         }
         window.onerror = (msg, url, line) => {
             this.debugLog(`JS Error: ${msg} at ${line}`);
@@ -159,9 +146,9 @@ class FarkleClient {
             try { this.createBackgroundEffects(); } catch (e) { console.error("Background Effects Failed", e); }
             try { this.initHistory(); } catch (e) { console.error("History Init Failed", e); }
 
-            // Create debug panel
-            this.createDebugPanel();
-            this.addDebugMessage('✅ Core Modules Ready');
+            // Minimalist init
+            // this.createDebugPanel();
+            // this.addDebugMessage('✅ Core Modules Ready');
 
             // Fall through to Discord Init immediately
 
@@ -197,7 +184,8 @@ class FarkleClient {
 
                 if (!savedToken || !savedUser) {
                     if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'block';
-                    if (this.ui.connectionDebug) this.ui.connectionDebug.style.display = 'none';
+                    const loadMsg = document.getElementById('connection-debug');
+                    if (loadMsg) loadMsg.style.display = 'none';
                 } else {
                     try {
                         const user = JSON.parse(savedUser);
@@ -206,6 +194,10 @@ class FarkleClient {
                         this.showWelcome(this.playerName, user.avatar, user.id);
                         this.identifyAnalytics(user);
                         if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
+
+                        // Progress to mode selection
+                        const modeSelection = document.getElementById('mode-selection');
+                        if (modeSelection) modeSelection.style.display = 'block';
                     } catch (e) {
                         localStorage.removeItem('farkle_auth_token');
                         localStorage.removeItem('farkle_user_data');
@@ -253,6 +245,10 @@ class FarkleClient {
 
                     // Helper to track analytics for restored session
                     this.identifyAnalytics(user);
+
+                    // Progress to mode selection
+                    const modeSelection = document.getElementById('mode-selection');
+                    if (modeSelection) modeSelection.style.display = 'block';
                     return;
                 } catch (e) {
                     localStorage.removeItem('farkle_auth_token');
@@ -286,8 +282,7 @@ class FarkleClient {
                 state: "",
                 scope: [
                     "identify",
-                    "guilds",
-                    "guilds.members.read"
+                    "guilds"
                 ],
             });
 
@@ -330,7 +325,7 @@ class FarkleClient {
             this.playerName = user.global_name || user.username;
             this.discordId = user.id;
 
-            console.log('[WELCOME] Calling showWelcome with:', this.playerName, user.avatar, user.id);
+            // console.log('[WELCOME] Calling showWelcome with:', this.playerName, user.avatar, user.id);
             this.showWelcome(this.playerName, user.avatar, user.id);
             this.identifyAnalytics(user);
 
@@ -357,16 +352,16 @@ class FarkleClient {
 
     showWelcome(name, avatar, id) {
         this.addDebugMessage(`👋 showWelcome called: ${name}`);
-        console.log('[WELCOME] Function called:', { name, avatar, id });
+        // console.log('[WELCOME] Function called:', { name, avatar, id });
 
         // Remove any existing welcome screen
         const existing = document.getElementById('welcome-overlay');
         if (existing) {
-            console.log('[WELCOME] Removing existing overlay');
+            // console.log('[WELCOME] Removing existing overlay');
             existing.remove();
         }
 
-        console.log('[WELCOME] Creating new overlay');
+        // console.log('[WELCOME] Creating new overlay');
         const overlay = document.createElement('div');
         overlay.id = 'welcome-overlay';
         overlay.style.cssText = `
@@ -412,17 +407,17 @@ class FarkleClient {
             </style>
         `;
 
-        console.log('[WELCOME] Appending overlay to body');
+        // console.log('[WELCOME] Appending overlay to body');
         document.body.appendChild(overlay);
-        console.log('[WELCOME] Overlay appended, setting timeout for fade out');
+        // console.log('[WELCOME] Overlay appended, setting timeout for fade out');
 
         // Fade out after delay
         setTimeout(() => {
-            console.log('[WELCOME] Fading out');
+            // console.log('[WELCOME] Fading out');
             overlay.style.opacity = '0';
             overlay.style.pointerEvents = 'none';
             setTimeout(() => {
-                console.log('[WELCOME] Removing overlay');
+                // console.log('[WELCOME] Removing overlay');
                 overlay.remove();
             }, 800);
         }, 3000);

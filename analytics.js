@@ -22,7 +22,7 @@ try {
         analyticsData = JSON.parse(raw);
     }
 } catch (e) {
-    console.error("Failed to load analytics data:", e);
+    // Analytics load fail
 }
 
 // Save data periodically
@@ -30,7 +30,7 @@ setInterval(() => {
     try {
         fs.writeFileSync(DATA_FILE, JSON.stringify(analyticsData, null, 2));
     } catch (e) {
-        console.error("Failed to save analytics data:", e);
+        // Analytics save fail
     }
 }, 60000); // Every minute
 
@@ -71,7 +71,7 @@ export const analytics = {
                     };
                 }
             } catch (e) {
-                console.warn('[ANALYTICS] ip-api.com lookup failed, trying fallback:', e.message);
+                // geo lookup fallback
                 try {
                     const fbResponse = await fetch(`https://ipapi.co/${ip}/json/`);
                     const fbData = await fbResponse.json();
@@ -94,7 +94,7 @@ export const analytics = {
                         };
                     }
                 } catch (fbErr) {
-                    console.warn('[ANALYTICS] Full geolocation failure:', fbErr.message);
+                    // silent fail
                 }
             }
 
@@ -152,7 +152,7 @@ export const analytics = {
                 analyticsData.hits = analyticsData.hits.slice(-10000);
             }
         } catch (err) {
-            console.error('[ANALYTICS] Full TrackHit Failure:', err);
+            // track hit fail
         }
     },
 
@@ -261,7 +261,6 @@ export const analytics = {
                 recent
             };
         } catch (err) {
-            console.error('[ANALYTICS] GetStats Error:', err);
             return { error: true, message: err.message };
         }
     }

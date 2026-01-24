@@ -3,8 +3,10 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
+import 'dotenv/config';
 import { calculateScore, hasPossibleMoves, isScoringSelection, DEFAULT_RULES } from './public/rules.js';
 import { analytics } from './analytics.js';
+import { db, database } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -15,8 +17,10 @@ app.use(express.json()); // Enable JSON body parsing for login
 
 // Middleware to track analytics
 app.use(async (req, res, next) => {
-    // Track hit asynchronously (ip-api.com lookup)
-    analytics.trackHit(req).catch(e => console.warn('[Analytics] Track failed:', e));
+    // Only track actual page hits, ignore API calls for general hit tracking
+    if (!req.path.startsWith('/api/') && !req.path.includes('.')) {
+        analytics.trackHit(req).catch(e => { });
+    }
     next();
 });
 
@@ -27,9 +31,7 @@ app.post('/api/analytics/identify', (req, res) => {
         // Here we could update the last analytics hit with this user info
         // or just log an 'identify' event.
         // For simplicity, we'll log it to console or extend analytics module later.
-        console.log(`[Analytics] Identified User: ${globalName} (${username}) [${userId}]`);
-
-        // TODO: Store this association in DB analytics later if needed.
+        // console.log(`[Analytics] Identified User: ${globalName} (${username}) [${userId}]`);
     }
     res.json({ success: true });
 });
@@ -37,11 +39,9 @@ app.post('/api/analytics/identify', (req, res) => {
 // Stats/Leaderboard Endpoint
 app.get('/api/stats/leaderboard', async (req, res) => {
     try {
-        const { database } = await import('./db.js');
-        const leaderboard = await database.getLeaderboard();
+        const leaderboard = await db.getLeaderboard();
         res.json(leaderboard);
     } catch (e) {
-        console.error('[Stats] Failed to fetch leaderboard:', e);
         res.status(500).json({ error: 'Failed to fetch leaderboard' });
     }
 });
@@ -84,28 +84,19 @@ app.get('/api/admin/stats', (req, res) => {
     }
 });
 
-// --- Discord Auth API ---
-import { db } from './db.js';
-import 'dotenv/config';
-// Note: dotenv config is loaded here, ensuring env vars are available
+
 
 app.post('/api/token', async (req, res) => {
     const { code } = req.body;
     let { redirectUri } = req.body;
     const secret = process.env.DISCORD_CLIENT_SECRET || process.env.DISCORD_SECRET;
 
-    // Quick return for dev/mock mode
     if (code === 'mock_code') return res.json({ access_token: 'mock', user: { id: 'mock', username: 'MockUser', global_name: 'Mock User' } });
 
-    if (!secret) {
-        console.error("Missing DISCORD_CLIENT_SECRET in .env");
-        return res.status(500).json({ error: "Server Configuration Error" });
-    }
+    if (!secret) return res.status(500).json({ error: "Server Configuration Error" });
 
-    // Fallback redirect URI if missing
-    if (!redirectUri) {
-        redirectUri = process.env.DISCORD_CALLBACK_URL;
-    }
+    // Note: For Discord Activities, we usually don't need redirect_uri if it wasn't used in authorize()
+    // By NOT defaulting to .env here, we allow the SDK to work without a strict redirect mapping if not needed.
 
     try {
         const paramsData = {
@@ -131,12 +122,9 @@ app.post('/api/token', async (req, res) => {
         });
         const userData = await userResponse.json();
 
-        const { database } = await import('./db.js');
-        await database.upsertUser(userData);
-
+        await db.upsertUser(userData);
         res.json({ access_token: tokenData.access_token, user: userData });
     } catch (err) {
-        console.error("RPC Auth Error:", err);
         res.status(500).json({ error: 'Auth Failed' });
     }
 });
@@ -145,31 +133,21 @@ app.post('/api/token', async (req, res) => {
 app.get('/api/access/auth/discord', (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID || '1455067365694771364';
 
-    // Log headers for debugging
-    console.log('[Auth-Debug] Raw Headers:', JSON.stringify({
-        host: req.get('host'),
-        'x-forwarded-host': req.get('x-forwarded-host'),
-        'x-forwarded-proto': req.get('x-forwarded-proto')
-    }));
-
-    // Priority: .env > Dynamic Detection
+    // Priority Detection for Redirect URI: Use environment variable if available, 
+    // otherwise reconstruct from the current request to ensure it matches the domain the user is on.
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
-    if (!redirectUri) {
-        const host = req.get('x-forwarded-host') || req.get('host') || '';
-        const protocol = 'https';
-        let targetHost = 'farkle.velarixsolutions.nl';
 
-        if (host.includes('veroe.space')) {
-            targetHost = 'veroe.space';
-        }
+    const host = req.get('x-forwarded-host') || req.get('host') || '';
+    const protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
 
-        redirectUri = `${protocol}://${targetHost}/api/access/auth/discord/callback`;
+    // If not using the environment variable, or if we want to be dynamic for known domains
+    if (!redirectUri || host.includes('veroe.space') || host.includes('localhost') || host.includes('velarixsolutions.nl')) {
+        redirectUri = `${protocol}://${host}/api/access/auth/discord/callback`;
     }
 
-    console.log(`[Auth] Redirecting to Discord. Final URI: ${redirectUri}`);
-
-    const scope = encodeURIComponent('identify guilds guilds.members.read');
+    const scope = encodeURIComponent('identify guilds');
     const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
+    // console.log(`[Auth] Initiating Discord Login: ${redirectUri}`);
     res.redirect(url);
 });
 
@@ -180,19 +158,13 @@ app.get('/api/access/auth/discord/callback', async (req, res) => {
     const secret = process.env.DISCORD_CLIENT_SECRET || process.env.DISCORD_SECRET;
     const clientId = process.env.DISCORD_CLIENT_ID || '1455067365694771364';
 
+    const host = req.get('x-forwarded-host') || req.get('host') || '';
+    const protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
-    if (!redirectUri) {
-        const host = req.get('x-forwarded-host') || req.get('host') || '';
-        const protocol = 'https';
-        let targetHost = 'farkle.velarixsolutions.nl';
 
-        if (host.includes('veroe.space')) {
-            targetHost = 'veroe.space';
-        }
-
-        redirectUri = `${protocol}://${targetHost}/api/access/auth/discord/callback`;
+    if (!redirectUri || host.includes('veroe.space') || host.includes('localhost') || host.includes('velarixsolutions.nl')) {
+        redirectUri = `${protocol}://${host}/api/access/auth/discord/callback`;
     }
-    console.log(`[Auth] Callback Received. URI used for exchange: ${redirectUri}`);
 
     try {
         const params = new URLSearchParams({
@@ -217,8 +189,7 @@ app.get('/api/access/auth/discord/callback', async (req, res) => {
         });
         const userData = await userResponse.json();
 
-        const { database } = await import('./db.js');
-        await database.upsertUser(userData);
+        await db.upsertUser(userData);
 
         res.send(`
             <script>
@@ -238,7 +209,9 @@ app.get('/api/access/auth/discord/callback', async (req, res) => {
 
 app.post('/api/analytics/identify', (req, res) => {
     const { userId, username, globalName } = req.body;
-    analytics.trackEvent('identify', { userId, username, globalName });
+    if (userId) {
+        analytics.trackEvent('identify', { userId, username, globalName });
+    }
     res.json({ success: true });
 });
 
@@ -348,7 +321,7 @@ class GameState {
     }
 
     start() {
-        if (this.players.length >= 2) {
+        if (this.players.filter(p => p.connected).length >= 2) {
             this.gameStatus = 'playing';
             this.currentPlayerIndex = 0;
             this.resetRound();
@@ -575,12 +548,7 @@ class GameState {
                 p.missedTurns = (p.missedTurns || 0) + 1;
                 console.log(`[Game ${this.roomCode}] Player ${p.name} missed turn ${p.missedTurns}`);
                 // Disabling auto-kick slice to prevent index shifts/random movement issues
-                /* 
-                if (p.missedTurns >= 3) {
-                    console.log(`[Game ${this.roomCode}] Marking ${p.name} as inactive/skipped.`);
-                    // Don't splice. Just ignore.
-                } 
-                */
+
             } else {
                 p.missedTurns = 0;
             }
@@ -664,7 +632,7 @@ class GameState {
 // Game definitions moved to bottom of file
 
 io.on('connection', (socket) => {
-    console.log('Client connected:', socket.id);
+
     socket.emit('room_list', getRoomList());
 
     socket.on('get_room_list', () => {
@@ -677,7 +645,7 @@ io.on('connection', (socket) => {
             const isSpectator = data?.spectator === true;
 
             if (!requestedRoom || !games.has(requestedRoom)) {
-                console.log(`[Join] Rejecting join request: No valid room code provided.`);
+
                 socket.emit('error', 'Please select a room first');
                 return;
             }
@@ -692,7 +660,7 @@ io.on('connection', (socket) => {
             if (token) {
                 existingPlayer = game.players.find(p => p.reconnectToken === token && !p.connected);
                 if (existingPlayer) {
-                    console.log(`[Game ${roomCode}] Player Reconnected: ${existingPlayer.name}`);
+                    // console.log(`[Game ${roomCode}] Player Reconnected: ${existingPlayer.name}`);
                     existingPlayer.id = socket.id; // Update socket ID
                     existingPlayer.connected = true;
                     existingPlayer.missedTurns = 0; // Reset AFK counter
@@ -724,7 +692,7 @@ io.on('connection', (socket) => {
                     if (code === roomCode) continue;
                     const p = g.players.find(p => p.reconnectToken === token && !p.connected);
                     if (p) {
-                        console.log(`[Global Reconnect] Found player ${p.name} in ${code}`);
+                        // console.log(`[Global Reconnect] Found player ${p.name} in ${code}`);
                         game = g;
                         roomCode = code;
                         existingPlayer = p;
@@ -845,7 +813,7 @@ io.on('connection', (socket) => {
                     setTimeout(() => {
                         const currentG = games.get(game.roomCode);
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
-                            console.log(`[Game ${game.roomCode}] Room empty for 15s. Resetting.`);
+                            // console.log(`[Game ${game.roomCode}] Room empty for 15s. Resetting.`);
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
                             currentG.resetRound();
@@ -1077,7 +1045,7 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // console.log('Client disconnected:', socket.id);
+
         for (const game of games.values()) {
             if (game.spectators.includes(socket.id)) {
                 game.removePlayer(socket.id); // Handles s removing
@@ -1091,7 +1059,7 @@ io.on('connection', (socket) => {
                     setTimeout(() => {
                         const currentG = games.get(game.roomCode);
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
-                            console.log(`[Game ${game.roomCode}] Room empty (disconnect) for 15s. Resetting.`);
+                            // console.log(`[Game ${game.roomCode}] Room empty (disconnect) for 15s. Resetting.`);
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
                             currentG.resetRound();
