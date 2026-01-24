@@ -138,7 +138,12 @@ app.get('/api/access/auth/discord', (req, res) => {
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
 
     const host = req.get('x-forwarded-host') || req.get('host') || '';
-    const protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    let protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+
+    // Safety check: If we're on the production domain but somehow getting 'http', force 'https'
+    if (host.includes('velarixsolutions.nl') || host.includes('veroe.space')) {
+        protocol = 'https';
+    }
 
     // If not using the environment variable, or if we want to be dynamic for known domains
     if (!redirectUri || host.includes('veroe.space') || host.includes('localhost') || host.includes('velarixsolutions.nl')) {
@@ -147,7 +152,7 @@ app.get('/api/access/auth/discord', (req, res) => {
 
     const scope = encodeURIComponent('identify guilds');
     const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${scope}`;
-    // console.log(`[Auth] Initiating Discord Login: ${redirectUri}`);
+    console.log(`[AUTH-DEBUG] Initiating login | Host: ${host} | Protocol: ${protocol} | Generated URI: ${redirectUri}`);
     res.redirect(url);
 });
 
@@ -159,7 +164,10 @@ app.get('/api/access/auth/discord/callback', async (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID || '1455067365694771364';
 
     const host = req.get('x-forwarded-host') || req.get('host') || '';
-    const protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    let protocol = req.get('x-forwarded-proto') || (host.includes('localhost') ? 'http' : 'https');
+    if (host.includes('velarixsolutions.nl') || host.includes('veroe.space')) {
+        protocol = 'https';
+    }
     let redirectUri = process.env.DISCORD_CALLBACK_URL;
 
     if (!redirectUri || host.includes('veroe.space') || host.includes('localhost') || host.includes('velarixsolutions.nl')) {
