@@ -321,11 +321,24 @@ class GameState {
     }
 
     start() {
-        if (this.players.filter(p => p.connected).length >= 2) {
+        const connectedCount = this.players.filter(p => p.connected).length;
+        if (connectedCount >= 2) {
             this.gameStatus = 'playing';
             this.currentPlayerIndex = 0;
             this.resetRound();
+            console.log(`[Game ${this.roomCode}] Started with ${connectedCount} players.`);
             return true;
+        }
+        return false;
+    }
+
+    checkAutoStart(io) {
+        if (this.gameStatus === 'waiting' && this.players.filter(p => p.connected).length >= 2) {
+            if (this.start()) {
+                io.to(this.roomCode).emit('game_start', this.getState());
+                io.emit('room_list', getRoomList());
+                return true;
+            }
         }
         return false;
     }
@@ -672,14 +685,8 @@ io.on('connection', (socket) => {
                     }
 
                     socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
-                    io.to(roomCode).emit('game_state_update', game.getState());
-
-                    // Auto-start check on reconnect
-                    if (game.gameStatus === 'waiting' && game.players.filter(p => p.connected).length >= 2) {
-                        console.log(`[Game ${roomCode}] Auto-start triggered on reconnect.`);
-                        game.start();
-                        io.to(roomCode).emit('game_start', game.getState());
-                        io.emit('room_list', getRoomList());
+                    if (!game.checkAutoStart(io)) {
+                        io.to(roomCode).emit('game_state_update', game.getState());
                     }
                     return;
                 }
@@ -707,15 +714,11 @@ io.on('connection', (socket) => {
                         }
 
                         socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
-                        io.to(roomCode).emit('game_state_update', game.getState());
 
-                        // Auto-start check on global reconnect
-                        if (game.gameStatus === 'waiting' && game.players.filter(p => p.connected).length >= 2) {
-                            console.log(`[Game ${roomCode}] Auto-start triggered on global reconnect.`);
-                            game.start();
-                            io.to(roomCode).emit('game_start', game.getState());
-                            io.emit('room_list', getRoomList());
+                        if (!game.checkAutoStart(io)) {
+                            io.to(roomCode).emit('game_state_update', game.getState());
                         }
+                        return;
                         return;
                     }
                 }
@@ -730,15 +733,11 @@ io.on('connection', (socket) => {
                 }
                 socket.join(roomCode);
                 socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
-                io.to(roomCode).emit('game_state_update', game.getState());
 
-                // Auto-start check on ID-based rejoin
-                if (game.gameStatus === 'waiting' && game.players.filter(p => p.connected).length >= 2) {
-                    console.log(`[Game ${roomCode}] Auto-start triggered on local rejoin.`);
-                    game.start();
-                    io.to(roomCode).emit('game_start', game.getState());
-                    io.emit('room_list', getRoomList());
+                if (!game.checkAutoStart(io)) {
+                    io.to(roomCode).emit('game_state_update', game.getState());
                 }
+                return;
                 return;
             }
 
@@ -777,15 +776,14 @@ io.on('connection', (socket) => {
             game.addPlayer(socket.id, name, data?.reconnectToken, data?.dbId);
             socket.join(roomCode);
             socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
-            io.to(roomCode).emit('game_state_update', game.getState());
-            io.emit('room_list', getRoomList());
 
-            if (game.gameStatus === 'waiting' && game.players.filter(p => p.connected).length >= 2) {
-                console.log(`[Game ${roomCode}] Auto-start threshold reached (2+ connected). Starting...`);
-                game.start();
-                io.to(roomCode).emit('game_start', game.getState());
-                io.emit('room_list', getRoomList());
+            // Try to auto-start if possible
+            if (!game.checkAutoStart(io)) {
+                // If not auto-started, just broadcast normal update
+                io.to(roomCode).emit('game_state_update', game.getState());
             }
+
+            io.emit('room_list', getRoomList());
         } catch (err) {
             console.error("Error in join_game:", err);
             socket.emit('error', "Server Error");

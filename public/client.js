@@ -1375,16 +1375,20 @@ class FarkleClient {
 
             const startBtn = this.ui.startGameBtn;
             if (startBtn) {
-                startBtn.style.display = 'block';
-                startBtn.textContent = 'START GAME'; // Ensure text is set
-                if (this.gameState.players.length >= 2) {
+                startBtn.style.display = 'inline-flex';
+                startBtn.textContent = 'START GAME';
+
+                const connectedPlayers = this.gameState.players.filter(p => p.connected);
+                if (connectedPlayers.length >= 2) {
                     startBtn.disabled = false;
                     startBtn.classList.add('pulse');
                     this.ui.actionText.textContent = "Lobby Ready! Start Game?";
+                    this.ui.currentScoreDisplay.textContent = "";
+
                 } else {
                     startBtn.disabled = true;
                     startBtn.classList.remove('pulse');
-                    this.ui.actionText.textContent = `Need ${2 - this.gameState.players.length} more`;
+                    this.ui.actionText.textContent = `Need ${2 - connectedPlayers.length} more`;
                     this.ui.currentScoreDisplay.textContent = "Waiting for players...";
                 }
             }
