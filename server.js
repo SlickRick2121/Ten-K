@@ -568,9 +568,11 @@ class GameState {
     }
 
     nextTurn() {
-        let attempts = 0;
-        let p;
-        const resultLoopLimit = this.players.length + 10;
+        if (this.players.length === 0) {
+            this.gameStatus = 'waiting';
+            this.resetRound();
+            return;
+        }
 
         do {
             this.currentPlayerIndex = (this.currentPlayerIndex + 1) % this.players.length;
@@ -579,8 +581,6 @@ class GameState {
             if (!p.connected) {
                 p.missedTurns = (p.missedTurns || 0) + 1;
                 console.log(`[Game ${this.roomCode}] Player ${p.name} missed turn ${p.missedTurns}`);
-                // Disabling auto-kick slice to prevent index shifts/random movement issues
-
             } else {
                 p.missedTurns = 0;
             }
@@ -689,21 +689,28 @@ class GameState {
             io.to(this.roomCode).emit('game_state_update', this.getState());
         }
 
-        // Clean up disconnected players after 3 minutes
-        this.players.forEach((p, idx) => {
+        // Clean up disconnected players after 3 minutes (180s)
+        for (let i = this.players.length - 1; i >= 0; i--) {
+            const p = this.players[i];
             if (!p.connected && p.disconnectTime && (now - p.disconnectTime) > 180000) {
                 console.log(`[Game ${this.roomCode}] Removing ${p.name} permanently (3 mins disconnected).`);
-                // If it's the current player, handle turn skip first
-                const wasCurrent = (idx === this.currentPlayerIndex);
-                this.players.splice(idx, 1);
-                if (wasCurrent) {
-                    this.currentPlayerIndex = this.currentPlayerIndex % (this.players.length || 1);
+
+                const wasCurrent = (i === this.currentPlayerIndex);
+                this.players.splice(i, 1);
+
+                if (this.players.length === 0) {
+                    this.gameStatus = 'waiting';
+                    this.resetRound();
+                    io.emit('room_list', getRoomList());
+                } else if (wasCurrent) {
+                    this.currentPlayerIndex = this.currentPlayerIndex % this.players.length;
                     this.nextTurn();
                 }
+
                 io.to(this.roomCode).emit('game_state_update', this.getState());
                 io.emit('room_list', getRoomList());
             }
-        });
+        }
     }
 }
 
@@ -872,17 +879,16 @@ io.on('connection', (socket) => {
                 }
                 const activeCount = game.players.filter(p => p.connected).length;
                 if (activeCount === 0) {
-                    // Grade period before wipe
+                    // Grace period before wipe - increased to 45s
                     setTimeout(() => {
                         const currentG = games.get(game.roomCode);
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
-                            // console.log(`[Game ${game.roomCode}] Room empty for 15s. Resetting.`);
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
                             currentG.resetRound();
                             io.emit('room_list', getRoomList());
                         }
-                    }, 15000);
+                    }, 45000);
                 }
                 socket.leave(game.roomCode);
                 io.emit('room_list', getRoomList());
@@ -1123,13 +1129,12 @@ io.on('connection', (socket) => {
                     setTimeout(() => {
                         const currentG = games.get(game.roomCode);
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
-                            // console.log(`[Game ${game.roomCode}] Room empty (disconnect) for 15s. Resetting.`);
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
                             currentG.resetRound();
                             io.emit('room_list', getRoomList());
                         }
-                    }, 15000);
+                    }, 45000);
                 }
                 io.emit('room_list', getRoomList());
                 if (game.gameStatus === 'waiting') {
