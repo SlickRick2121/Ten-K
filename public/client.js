@@ -1076,6 +1076,15 @@ class FarkleClient {
             // data: { sender: "Name", message: "text", isSystem: boolean }
             this.addChatMessage(data);
         });
+
+        this.socket.on('turn_reminder', () => {
+            this.showFeedback("It's your turn! (AFK Reminder)", "info");
+            this.sounds.play('hover'); // Gentle sound
+            if (this.discordSdk) {
+                // Flash or notify via SDK? 
+                // Discord Activity SDK doesn't have a direct "flash window" but we can try setting activity.
+            }
+        });
     }
 
     renderRoomList(allRooms) {

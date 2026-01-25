@@ -253,6 +253,8 @@ class GameState {
             next: new Set(),
             type: null // 'reset' or 'next'
         };
+        this.turnStartTime = Date.now();
+        this.reminded = false;
     }
 
     startVote(type, playerId) {
@@ -415,6 +417,8 @@ class GameState {
             }
         }
 
+        this.turnStartTime = Date.now();
+        this.reminded = false;
         const newDice = [];
         for (let i = 0; i < this.diceCountToRoll; i++) {
             newDice.push({
@@ -541,6 +545,9 @@ class GameState {
 
         if (this.gameStatus !== 'finished') {
             this.nextTurn();
+        } else {
+            this.turnStartTime = Date.now();
+            this.reminded = false;
         }
 
         return { success: true };
@@ -589,6 +596,8 @@ class GameState {
         }
 
         this.resetRound();
+        this.turnStartTime = Date.now();
+        this.reminded = false;
 
         if (this.isFinalRound && this.currentPlayerIndex === this.finalRoundTriggeredBy) {
             this.endGame();
@@ -649,8 +658,52 @@ class GameState {
                 count: this.votes[this.votes.type].size,
                 needed: this.players.filter(p => p.connected).length === 2 ? 2 : Math.ceil(this.players.filter(p => p.connected).length * 0.6),
                 voters: Array.from(this.votes[this.votes.type])
-            } : null
+            } : null,
+            timer: Math.max(0, 60 - Math.floor((Date.now() - this.turnStartTime) / 1000))
         };
+    }
+
+    checkAFK(io) {
+        if (this.gameStatus !== 'playing') return;
+
+        const now = Date.now();
+        const idleTime = (now - this.turnStartTime) / 1000;
+        const player = this.players[this.currentPlayerIndex];
+
+        // 60s Reminder
+        if (idleTime >= 60 && !this.reminded) {
+            this.reminded = true;
+            if (player && player.connected) {
+                io.to(player.id).emit('turn_reminder');
+                console.log(`[Game ${this.roomCode}] Reminded ${player.name} to take turn.`);
+            }
+        }
+
+        // Auto-skip after 120s (User said afk > 1 min, but let's give buffer for reminder)
+        // User: "remind them its their turn after 60 seconds... any and all people who are afk for more than one minute"
+        // Let's interpret AFK > 1 min as "take action or we move on". 
+        // We'll give 60s for reminder, then if another 30s pass (90s total), we auto-skip.
+        if (idleTime >= 90) {
+            console.log(`[Game ${this.roomCode}] Auto-skipping ${player.name} due to inactivity (90s).`);
+            this.nextTurn();
+            io.to(this.roomCode).emit('game_state_update', this.getState());
+        }
+
+        // Clean up disconnected players after 3 minutes
+        this.players.forEach((p, idx) => {
+            if (!p.connected && p.disconnectTime && (now - p.disconnectTime) > 180000) {
+                console.log(`[Game ${this.roomCode}] Removing ${p.name} permanently (3 mins disconnected).`);
+                // If it's the current player, handle turn skip first
+                const wasCurrent = (idx === this.currentPlayerIndex);
+                this.players.splice(idx, 1);
+                if (wasCurrent) {
+                    this.currentPlayerIndex = this.currentPlayerIndex % (this.players.length || 1);
+                    this.nextTurn();
+                }
+                io.to(this.roomCode).emit('game_state_update', this.getState());
+                io.emit('room_list', getRoomList());
+            }
+        });
     }
 }
 
@@ -1064,6 +1117,7 @@ io.on('connection', (socket) => {
             const player = game.players.find(p => p.id === socket.id);
             if (player) {
                 player.connected = false;
+                player.disconnectTime = Date.now();
                 const activeCount = game.players.filter(p => p.connected).length;
                 if (activeCount === 0) {
                     setTimeout(() => {
@@ -1197,6 +1251,17 @@ app.get('/api/leaderboard', async (req, res) => {
         res.json(board);
     } catch (e) { res.status(500).json({ error: e.message }); }
 });
+
+// --- Game Loop ---
+setInterval(() => {
+    for (const game of games.values()) {
+        try {
+            game.checkAFK(io);
+        } catch (err) {
+            console.error("AFK Check Error:", err);
+        }
+    }
+}, 5000); // Check every 5s
 
 const PORT = process.env.PORT || 3000;
 httpServer.listen(PORT, () => {
