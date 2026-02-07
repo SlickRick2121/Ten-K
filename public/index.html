@@ -112,7 +112,11 @@
                 <span style="font-size: 0.7rem; font-weight: 800; margin-left: 4px; display: none;"
                     id="leave-text">LEAVE</span>
             </button>
-            <div class="header-actions" style="display: flex; gap: 8px;">
+            <div class="header-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button id="header-login-btn" class="btn primary small"
+                    style="display: none; padding: 0 10px; height: 36px; font-size: 0.8rem;">
+                    Sign Up
+                </button>
                 <button id="quick-mute-btn" class="icon-btn" title="Toggle Sound">
                     <svg class="mute-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                         stroke-width="2">
@@ -190,21 +194,7 @@
                     style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; text-align: center;">
                     Initializing...</div>
 
-                <div id="web-auth-section" style="display: none; text-align: center; margin-bottom: 2rem;">
-                    <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Sign in to track stats & join friends
-                    </p>
-                    <button id="discord-login-btn" class="btn primary"
-                        style="background: #5865F2; border: none; width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 12px;">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="white">
-                            <path
-                                d="M19.27 4.57C17.77 3.88 16.16 3.38 14.48 3.1c-.21.37-.44.78-.61 1.18c-1.79-.27-3.57-.27-5.35 0c-.17-.4-.4-.81-.61-1.18c-1.68.28-3.29.78-4.79 1.47c-3.03 4.54-3.85 8.96-3.44 13.31c2 1.48 3.94 2.38 5.83 2.97c.47-.64.89-1.33 1.25-2.06c-.68-.25-1.33-.58-1.95-1c.16-.12.32-.24.48-.37c3.8 1.75 7.92 1.75 11.67 0c.16.13.32.25.48.37c-.62.42-1.27.75-1.95 1c.36.73.78 1.42 1.25 2.06c1.89-.59 3.83-1.49 5.83-2.97c.47-5.01-.84-9.39-3.44-13.31zM8.47 14.7c-1.14 0-2.08-1.05-2.08-2.33c0-1.29.92-2.33 2.08-2.33c1.16 0 2.1 1.05 2.08 2.33c0 1.28-.92 2.33-2.08 2.33zm7.06 0c-1.14 0-2.08-1.05-2.08-2.33c0-1.29.92-2.33 2.08-2.33c1.16 0 2.1 1.05 2.08 2.33c0 1.28-.92 2.33-2.08 2.33z" />
-                        </svg>
-                        Login with Discord
-                    </button>
-                    <div style="margin-top: 1rem;">
-                        <button id="guest-login-btn" class="btn micro" style="opacity: 0.6;">Continue as Guest</button>
-                    </div>
-                </div>
+                <!-- Web Auth Section Removed -->
 
                 <div id="mode-selection" style="display:none; text-align: center; margin-bottom: 2rem;">
                     <p style="color: var(--text-muted); margin-bottom: 1rem;">Select Experience</p>

@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Report - Ten-K</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #4deaff;
+            --accent: #b44dea;
+            --danger: #ff4d4d;
+            --success: #4dea88;
+            --background: #0a0a12;
+            --surface: rgba(20, 20, 35, 0.8);
+            --text: #ffffff;
+            --text-muted: #a0a0b8;
+            --border: rgba(77, 234, 255, 0.2);
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: linear-gradient(135deg, #090910, #1a2a3a);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Aurora Background Effect */
+        .aurora-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .aurora {
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle at 25% 25%, rgba(77, 234, 255, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 75% 75%, rgba(180, 77, 234, 0.15) 0%, transparent 50%);
+            animation: aurora-shift 20s ease-in-out infinite;
+        }
+
+        @keyframes aurora-shift {
+
+            0%,
+            100% {
+                transform: translate(-25%, -25%) rotate(0deg);
+            }
+
+            50% {
+                transform: translate(-5%, -5%) rotate(180deg);
+            }
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+            animation: fadeInDown 0.8s ease-out;
+        }
+
+        .logo-text {
+            font-size: 4rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+            letter-spacing: 2px;
+        }
+
+        .tagline {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 800px;
+            background: var(--surface);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 3rem;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5),
+                0 0 100px rgba(77, 234, 255, 0.1);
+            animation: fadeInUp 0.8s ease-out;
+        }
+
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        h2 {
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .form-group {
+            margin-bottom: 2rem;
+        }
+
+        label {
+            display: block;
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 1rem;
+            background: rgba(10, 10, 20, 0.6);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            color: var(--text);
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        input:focus,
+        textarea:focus,
+        select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 20px rgba(77, 234, 255, 0.3);
+        }
+
+        input:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            background: rgba(10, 10, 20, 0.8);
+        }
+
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+            background: rgba(77, 234, 255, 0.05);
+            border: 1px solid var(--primary);
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .user-avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .user-details {
+            flex: 1;
+        }
+
+        .user-details strong {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--primary);
+        }
+
+        .user-details small {
+            color: var(--text-muted);
+        }
+
+        .btn {
+            padding: 1rem 2.5rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            color: var(--background);
+            box-shadow: 0 10px 30px rgba(77, 234, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 15px 40px rgba(77, 234, 255, 0.5);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .success-message.show {
+            display: block;
+        }
+
+        .success-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            animation: bounceIn 0.6s ease-out;
+        }
+
+        @keyframes bounceIn {
+            0% {
+                transform: scale(0);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 2rem;
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .back-link:hover {
+            color: var(--accent);
+            transform: translateX(-5px);
+        }
+
+        .required {
+            color: var(--danger);
+        }
+
+        @media (max-width: 768px) {
+            .logo-text {
+                font-size: 2.5rem;
+            }
+
+            .container {
+                padding: 2rem;
+            }
+
+            .button-group {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="aurora-container">
+        <div class="aurora"></div>
+    </div>
+
+    <header>
+        <h1 class="logo-text">Ten-K</h1>
+        <div class="tagline">Bug Bounty Report</div>
+    </header>
+
+    <div class="container">
+        <div id="form-container">
+            <h2>
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                </svg>
+                Report a Bug
+            </h2>
+
+            <div class="user-info">
+                <div class="user-avatar" id="user-avatar">?</div>
+                <div class="user-details">
+                    <strong id="display-username">Loading...</strong>
+                    <small>Your report will be submitted under this account</small>
+                </div>
+            </div>
+
+            <form id="bug-report-form">
+                <input type="hidden" id="username" name="username">
+                <input type="hidden" id="user-id" name="userId">
+
+                <div class="form-group">
+                    <label for="problem">Problem Title <span class="required">*</span></label>
+                    <input type="text" id="problem" name="problem" required placeholder="Brief description of the issue"
+                        maxlength="100">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Detailed Description <span class="required">*</span></label>
+                    <textarea id="description" name="description" required
+                        placeholder="Please describe the bug in detail..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="reproduction">How to Reproduce / When it Triggers <span
+                            class="required">*</span></label>
+                    <textarea id="reproduction" name="reproduction" required
+                        placeholder="Steps to reproduce the bug or conditions when it occurs..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="severity">Severity</label>
+                    <select id="severity" name="severity">
+                        <option value="low">Low - Minor inconvenience</option>
+                        <option value="medium" selected>Medium - Affects gameplay</option>
+                        <option value="high">High - Game breaking</option>
+                        <option value="critical">Critical - Cannot play</option>
+                    </select>
+                </div>
+
+                <div class="button-group">
+                    <button type="submit" class="btn btn-primary">Submit Report</button>
+                    <button type="button" class="btn btn-secondary"
+                        onclick="window.location.href='index.html'">Cancel</button>
+                </div>
+            </form>
+        </div>
+
+        <div id="success-message" class="success-message">
+            <div class="success-icon">✅</div>
+            <h2>Report Submitted Successfully!</h2>
+            <p style="color: var(--text-muted); margin-top: 1rem;">Thank you for helping us improve Ten-K. We'll review
+                your report shortly.</p>
+            <a href="index.html" class="back-link">← Back to Game</a>
+        </div>
+    </div>
+
+    <script>
+        // Get user info from localStorage
+        const savedUser = localStorage.getItem('farkle_user_data');
+        const savedUsername = localStorage.getItem('farkle-username');
+
+        let username = 'Guest User';
+        let userId = null;
+        let userAvatar = null;
+
+        if (savedUser) {
+            try {
+                const user = JSON.parse(savedUser);
+                username = user.global_name || user.username;
+                userId = user.id;
+                userAvatar = user.avatar;
+            } catch (e) {
+                console.error('Error parsing user data:', e);
+            }
+        } else if (savedUsername) {
+            username = savedUsername;
+        }
+
+        // Update UI
+        document.getElementById('display-username').textContent = username;
+        document.getElementById('username').value = username;
+        document.getElementById('user-id').value = userId || '';
+
+        // Set avatar
+        const avatarEl = document.getElementById('user-avatar');
+        if (userAvatar && userId) {
+            avatarEl.innerHTML = `<img src="https://cdn.discordapp.com/avatars/${userId}/${userAvatar}.png" style="width: 100%; height: 100%; border-radius: 50%;">`;
+        } else {
+            avatarEl.textContent = username.charAt(0).toUpperCase();
+        }
+
+        // Form submission
+        document.getElementById('bug-report-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = {
+                username: document.getElementById('username').value,
+                userId: document.getElementById('user-id').value,
+                problem: document.getElementById('problem').value,
+                description: document.getElementById('description').value,
+                reproduction: document.getElementById('reproduction').value,
+                severity: document.getElementById('severity').value,
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            };
+
+            try {
+                const response = await fetch('/api/bug-report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (response.ok) {
+                    document.getElementById('form-container').style.display = 'none';
+                    document.getElementById('success-message').classList.add('show');
+                } else {
+                    alert('Failed to submit report. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error submitting bug report:', error);
+                alert('An error occurred. Please try again later.');
+            }
+        });
+    </script>
+</body>
+
+</html>

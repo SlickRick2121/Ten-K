@@ -98,9 +98,8 @@ class FarkleClient {
                 statsModal: document.getElementById('stats-modal'),
                 statsContent: document.getElementById('stats-content'),
                 statsBtn: document.getElementById('stats-btn'), // Added missing reference
-                webAuthSection: document.getElementById('web-auth-section'),
-                discordLoginBtn: document.getElementById('discord-login-btn'),
-                guestLoginBtn: document.getElementById('guest-login-btn')
+                statsBtn: document.getElementById('stats-btn'),
+                headerLoginBtn: document.getElementById('header-login-btn')
             };
 
             // Hook up start button
@@ -177,36 +176,34 @@ class FarkleClient {
     async initDiscord() {
         try {
             // Check if running in iframe (Discord env) - simplistic check
-            if (window.self === window.top && !window.location.search.includes('frame_id')) {
-                this.debugLog("Standalone Mode. Checking auth...");
+            if (savedToken && savedUser) {
+                try {
+                    const user = JSON.parse(savedUser);
+                    this.playerName = user.global_name || user.username;
+                    this.discordId = user.id;
+                    this.showWelcome(this.playerName, user.avatar, user.id);
+                    this.identifyAnalytics(user);
 
-                // Show Web Auth Section if no session
-                const savedToken = localStorage.getItem('farkle_auth_token');
-                const savedUser = localStorage.getItem('farkle_user_data');
+                    if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'none';
 
-                if (!savedToken || !savedUser) {
-                    if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'block';
-                    const loadMsg = document.getElementById('connection-debug');
-                    if (loadMsg) loadMsg.style.display = 'none';
-                } else {
-                    try {
-                        const user = JSON.parse(savedUser);
-                        this.playerName = user.global_name || user.username;
-                        this.discordId = user.id;
-                        this.showWelcome(this.playerName, user.avatar, user.id);
-                        this.identifyAnalytics(user);
-                        if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
-
-                        // Progress to mode selection
-                        const modeSelection = document.getElementById('mode-selection');
-                        if (modeSelection) modeSelection.style.display = 'block';
-                    } catch (e) {
-                        localStorage.removeItem('farkle_auth_token');
-                        localStorage.removeItem('farkle_user_data');
-                    }
+                    // Progress to mode selection
+                    const modeSelection = document.getElementById('mode-selection');
+                    if (modeSelection) modeSelection.style.display = 'block';
+                    return;
+                } catch (e) {
+                    localStorage.removeItem('farkle_auth_token');
+                    localStorage.removeItem('farkle_user_data');
                 }
-                return;
             }
+
+            // If we are here, we are a "Guest" by default or failed auth
+            if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'block';
+
+            // Default to Mode Selection immediately
+            const modeSelection = document.getElementById('mode-selection');
+            if (modeSelection) modeSelection.style.display = 'block';
+            const loadMsg = document.getElementById('connection-debug');
+            if (loadMsg) loadMsg.style.display = 'none';
 
             this.debugLog("Loading Discord SDK...");
             let DiscordSDK;
@@ -835,13 +832,12 @@ class FarkleClient {
                 this.playerName = user.global_name || user.username;
                 this.discordId = user.id;
 
-                if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
+                this.playerName = user.global_name || user.username;
+                this.discordId = user.id;
+
+                if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'none';
                 this.showWelcome(this.playerName, user.avatar, user.id);
                 this.identifyAnalytics(user);
-
-                // Show mode selection after login
-                const modeSelection = document.getElementById('mode-selection');
-                if (modeSelection) modeSelection.style.display = 'block';
             }
         };
 
@@ -850,16 +846,8 @@ class FarkleClient {
 
     initListeners() {
         // ...Existing listeners...
-        if (this.ui.discordLoginBtn) {
-            this.ui.discordLoginBtn.onclick = () => this.loginWithDiscordWeb();
-        }
-        if (this.ui.guestLoginBtn) {
-            this.ui.guestLoginBtn.onclick = () => {
-                if (this.ui.webAuthSection) this.ui.webAuthSection.style.display = 'none';
-                const modeSelection = document.getElementById('mode-selection');
-                if (modeSelection) modeSelection.style.display = 'block';
-                this.showWelcome(this.playerName, null, null);
-            };
+        if (this.ui.headerLoginBtn) {
+            this.ui.headerLoginBtn.onclick = () => this.loginWithDiscordWeb();
         }
         this.ui.rollBtn.addEventListener('click', () => {
             if (this.canInteract()) {
