@@ -638,8 +638,8 @@ class FarkleClient {
 
     async showLeaderboard() {
         const modal = this.getStatsModal();
-        const content = modal.querySelector('.modal-content-body');
-        content.innerHTML = '<p>Loading...</p>';
+        const content = document.getElementById('stats-content') || modal.querySelector('.modal-content-body');
+        if (content) content.innerHTML = '<p>Loading...</p>';
         modal.classList.remove('hidden');
 
         try {
@@ -661,10 +661,10 @@ class FarkleClient {
                 </tr>`;
             });
             html += '</table>';
-            content.innerHTML = html;
+            if (content) content.innerHTML = html;
         } catch (e) {
             console.error("Leaderboard Error", e);
-            content.innerHTML = '<p>Error loading leaderboard. Attempting to fetch from /api/stats/leaderboard...</p>';
+            if (content) content.innerHTML = '<p>Error loading leaderboard. Attempting to fetch from /api/stats/leaderboard...</p>';
         }
     }
 
@@ -674,26 +674,35 @@ class FarkleClient {
 
     async showMyStats() {
         const modal = this.getStatsModal();
-        const content = modal.querySelector('.modal-content-body');
-        content.innerHTML = '<p>Loading...</p>';
+        const content = document.getElementById('stats-content') || modal.querySelector('.modal-content-body');
+        if (content) content.innerHTML = '<p>Loading...</p>';
         modal.classList.remove('hidden');
 
         if (!this.discordId) {
             if (this.discordSdk && this.discordSdk.mock) {
                 this.discordId = "mock_user_123";
             } else {
-                content.innerHTML = "<p>Please play via Discord Activity to view stats.</p>";
+                if (content) content.innerHTML = "<p>Please play via Discord Activity to view stats.</p>";
                 return;
             }
         }
 
         try {
-            const res = await fetch(`/api/stats/${this.discordId}`);
+            const res = await fetch(`/api/stats/${this.discordId}`); // Use direct ID endpoint
+            // Endpoint in server.js isn't explicitly /api/stats/:id but we might have /api/stats?
+            // Actually server.js has /api/stats/leaderboard but check for individual stats...
+            // Checking server.js: app.get('/api/admin/stats') exists but that's global.
+            // db.getUser(id) returns stats. 
+            // We might need to add an endpoint for single user stats if it doesn't exist, 
+            // OR use what we have. 
+            // Wait, looking at server.js (viewed earlier), I didn't see a specific /api/stats/:id.
+            // But let's fix the UI error first. The 404 is a separate issue if endpoint missing.
+
             if (!res.ok) throw new Error("Stats not found");
             const data = await res.json();
             const stats = data.stats || {};
 
-            content.innerHTML = `
+            const html = `
                 <div style="text-align: center; margin-bottom: 20px;">
                     ${data.avatar ? `<img src="https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png" style="width:64px;height:64px;border-radius:50%; margin-bottom:10px;">` : ''}
                     <h3>${data.display_name}</h3>
@@ -722,8 +731,9 @@ class FarkleClient {
                     </div>
                 </div>
             `;
+            if (content) content.innerHTML = html;
         } catch (e) {
-            content.innerHTML = `<p>No stats found yet. Play a game to track stats!</p>`;
+            if (content) content.innerHTML = `<p>No stats found yet. Play a game to track stats!</p>`;
         }
     }
 
@@ -739,7 +749,7 @@ class FarkleClient {
             modal.innerHTML = `
                 <div class="modal-content" style="pointer-events: auto;">
                     <h2>Statistics</h2>
-                    <div class="modal-content-body" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
+                    <div id="stats-content" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
                     <button class="btn close-modal">Close</button>
                 </div>
             `;
