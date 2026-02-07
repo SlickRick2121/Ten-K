@@ -145,6 +145,7 @@ class FarkleClient {
             try { this.initSettings(); } catch (e) { console.error("Settings Init Failed", e); }
             try { this.createBackgroundEffects(); } catch (e) { console.error("Background Effects Failed", e); }
             try { this.initHistory(); } catch (e) { console.error("History Init Failed", e); }
+            try { this.initStatsUI(); } catch (e) { console.error("Stats UI Init Failed", e); }
 
             // Minimalist init
             // this.createDebugPanel();
@@ -641,26 +642,33 @@ class FarkleClient {
         modal.classList.remove('hidden');
 
         try {
-            const res = await fetch('/api/leaderboard');
+            const res = await fetch('/api/stats/leaderboard'); // Fixed endpoint to match server.js
             const data = await res.json();
 
-            let html = '<table style="width:100%; text-align:left;"><tr><th>Rank</th><th>Player</th><th>Wins</th><th>Score</th></tr>';
+            if (!Array.isArray(data)) throw new Error("Invalid data");
+
+            let html = '<table style="width:100%; text-align:left; border-collapse: collapse;"><tr><th style="padding:8px; border-bottom:1px solid #444;">Rank</th><th style="padding:8px; border-bottom:1px solid #444;">Player</th><th style="padding:8px; border-bottom:1px solid #444;">Wins</th><th style="padding:8px; border-bottom:1px solid #444;">Score</th></tr>';
             data.forEach((row, i) => {
                 html += `<tr>
-                    <td>#${i + 1}</td>
-                    <td style="display:flex; align-items:center; gap:5px;">
-                        ${row.avatar ? `<img src="https://cdn.discordapp.com/avatars/${row.id}/${row.avatar}.png" style="width:20px;height:20px;border-radius:50%">` : ''} 
-                        ${row.display_name}
+                    <td style="padding:8px; border-bottom:1px solid #333;">#${i + 1}</td>
+                    <td style="display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #333;">
+                        ${row.avatar ? `<img src="https://cdn.discordapp.com/avatars/${row.id}/${row.avatar}.png" style="width:24px;height:24px;border-radius:50%">` : ''} 
+                        ${row.name || 'Unknown'}
                     </td>
-                    <td>${row.wins}</td>
-                    <td>${Number(row.total_score).toLocaleString()}</td>
+                    <td style="padding:8px; border-bottom:1px solid #333;">${row.wins}</td>
+                    <td style="padding:8px; border-bottom:1px solid #333;">${Number(row.totalScore).toLocaleString()}</td>
                 </tr>`;
             });
             html += '</table>';
             content.innerHTML = html;
         } catch (e) {
-            content.innerHTML = '<p>Error loading leaderboard</p>';
+            console.error("Leaderboard Error", e);
+            content.innerHTML = '<p>Error loading leaderboard. Attempting to fetch from /api/stats/leaderboard...</p>';
         }
+    }
+
+    showStats() {
+        this.showLeaderboard();
     }
 
     async showMyStats() {
@@ -1025,6 +1033,17 @@ class FarkleClient {
             if (this.ui.leaveText) this.ui.leaveText.style.display = 'inline';
             if (this.ui.leaveBtn) this.ui.leaveBtn.style.width = 'auto';
             if (this.ui.leaveBtn) this.ui.leaveBtn.style.padding = '0 12px';
+
+            // Show hardware acceleration notice if not seen before
+            const hwAccelSeen = localStorage.getItem('hw-accel-notice-seen');
+            if (!hwAccelSeen) {
+                const hwAccelModal = document.getElementById('hw-accel-modal');
+                if (hwAccelModal) {
+                    setTimeout(() => {
+                        hwAccelModal.classList.remove('hidden');
+                    }, 1000);
+                }
+            }
         });
 
         this.socket.on('game_state_update', (state) => {
