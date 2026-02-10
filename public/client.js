@@ -1369,18 +1369,17 @@ class FarkleClient {
 
                 if (isCurrent) card.classList.add('active');
 
-                // Name
-                const nameEl = document.createElement('div');
-                nameEl.className = 'player-name';
-                nameEl.textContent = player.name + (player.id === this.socket.id ? ' (YOU)' : '');
+                // Content
+                const info = document.createElement('div');
+                info.className = 'player-name';
+                info.textContent = player.name + (player.id === this.socket.id ? ' (You)' : '');
 
-                // Score
-                const scoreEl = document.createElement('div');
-                scoreEl.className = 'player-score';
-                scoreEl.textContent = player.score.toLocaleString();
+                const score = document.createElement('div');
+                score.className = 'player-score';
+                score.textContent = player.score.toLocaleString();
 
-                card.appendChild(nameEl);
-                card.appendChild(scoreEl);
+                card.appendChild(info);
+                card.appendChild(score);
 
                 // Host Badge
                 if (this.gameState.hostId === player.id) {
