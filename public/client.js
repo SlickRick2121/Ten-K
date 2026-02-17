@@ -96,9 +96,7 @@ class FarkleClient {
                 volumeSlider: document.getElementById('volume-slider'),
                 muteBtn: document.getElementById('mute-btn'),
                 volumeIcon: document.getElementById('volume-icon'),
-                statsModal: document.getElementById('stats-modal'),
                 statsContent: document.getElementById('stats-content'),
-                statsBtn: document.getElementById('stats-btn'), // Added missing reference
                 statsBtn: document.getElementById('stats-btn'),
                 headerLoginBtn: document.getElementById('header-login-btn')
             };
@@ -1019,8 +1017,14 @@ class FarkleClient {
             this.roomCode = state.roomCode;
             this.isSpectator = isSpectator || false;
 
-            this.updateGameState(state);
-            this.ui.setupModal.classList.add('hidden');
+            // HIDE MODAL IMMEDIATELY
+            if (this.ui.setupModal) this.ui.setupModal.classList.add('hidden');
+
+            try {
+                this.updateGameState(state);
+            } catch (e) {
+                console.error("State Update Failed on Join", e);
+            }
 
             if (this.isSpectator) this.showFeedback("Joined as Spectator", "info");
             else this.showFeedback("Joined Room!", "success");
@@ -1256,9 +1260,28 @@ class FarkleClient {
 
 
 
+    joinRoom(roomCode, asSpectator = false) {
+        this.roomCode = roomCode;
+        this.isSpectator = asSpectator;
+        sessionStorage.setItem('farkle-room-code', roomCode);
+
+        this.debugLog(`Joining ${roomCode}...`);
+        this.socket.emit('join_game', {
+            roomCode: roomCode,
+            asSpectator: asSpectator,
+            reconnectToken: this.reconnectToken,
+            name: this.playerName,
+            dbId: this.discordId || null
+        });
+    }
+
     joinGame() {
         this.debugLog(`Joining Game...`);
-        this.socket.emit('join_game');
+        this.socket.emit('join_game', {
+            reconnectToken: this.reconnectToken,
+            name: this.playerName,
+            dbId: this.discordId || null
+        });
     }
 
     leaveGame(fromPopState = false) {
@@ -1337,6 +1360,7 @@ class FarkleClient {
         const container = this.ui.playerZonesContainer;
         if (!container) return;
 
+        container.style.opacity = 1; // Force visibility
         container.classList.add('seated-layout');
 
         // Render 10 Seats
@@ -1410,9 +1434,11 @@ class FarkleClient {
         }
     }
 
-    renderDice(dice) {
+    renderDice(dice = []) {
         if (!this.ui.diceContainer) return;
         const container = this.ui.diceContainer;
+        if (!Array.isArray(dice)) dice = [];
+
         while (container.children.length > dice.length) {
             container.removeChild(container.lastChild);
         }
@@ -1441,6 +1467,10 @@ class FarkleClient {
                 die.style.animation = null;
             }
         });
+
+        // Ensure dice arena is visible
+        const arena = document.querySelector('.dice-arena');
+        if (arena) arena.style.opacity = 1;
     }
 
     updateGameState(state) {
@@ -1469,8 +1499,18 @@ class FarkleClient {
             }
         }
 
+        // --- STABILITY: Ensure items are actually revealed ---
+        const reveal = () => {
+            gsap.set([".player-zones", ".dice-arena", ".controls"], { opacity: 1, visibility: 'visible', scale: 1, y: 0 });
+        };
+        if (!this.revealDone) {
+            setTimeout(reveal, 2000); // Fail-safe reveal
+            this.revealDone = true;
+        }
+
         if (this.gameState.gameStatus === 'playing') {
-            const myPlayer = this.gameState.players.find(p => p.id === this.socket.id);
+            const myId = this.socket?.id || this.playerId;
+            const myPlayer = this.gameState.players.find(p => p.id === myId || p.reconnectToken === this.reconnectToken);
             if (myPlayer) {
                 const scoreText = `Score: ${myPlayer.score}`;
                 const roundText = `Round: ${state.roundAccumulatedScore > 0 ? '+' + state.roundAccumulatedScore : 'Rolling'}`;
