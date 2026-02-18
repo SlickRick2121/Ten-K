@@ -176,27 +176,6 @@ class FarkleClient {
     // --- Discord Integration ---
     async initDiscord() {
         try {
-            // Check if running in iframe (Discord env) - simplistic check
-            if (savedToken && savedUser) {
-                try {
-                    const user = JSON.parse(savedUser);
-                    this.playerName = user.global_name || user.username;
-                    this.discordId = user.id;
-                    this.showWelcome(this.playerName, user.avatar, user.id);
-                    this.identifyAnalytics(user);
-
-                    if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'none';
-
-                    // Progress to mode selection
-                    const modeSelection = document.getElementById('mode-selection');
-                    if (modeSelection) modeSelection.style.display = 'block';
-                    return;
-                } catch (e) {
-                    localStorage.removeItem('farkle_auth_token');
-                    localStorage.removeItem('farkle_user_data');
-                }
-            }
-
             // If we are here, we are a "Guest" by default or failed auth
             if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'block';
 
@@ -331,10 +310,11 @@ class FarkleClient {
 
         } catch (err) {
             console.error("Discord Auth Failed/Cancelled", err);
-            // Fallback to random guest if auth fails
-            if (!this.playerName) {
-                // Fallback is already set in constructor
-            }
+            // Fallback to mode selection even on failure
+            const modeSelection = document.getElementById('mode-selection');
+            if (modeSelection) modeSelection.style.display = 'block';
+            const loadMsg = document.getElementById('connection-debug');
+            if (loadMsg) loadMsg.style.display = 'none';
         }
     }
 
