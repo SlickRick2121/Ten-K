@@ -61,6 +61,16 @@ app.get('/api/stats/leaderboard', async (req, res) => {
     }
 });
 
+app.get('/api/stats/:userId', async (req, res) => {
+    try {
+        const user = await db.getUser(req.params.userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+        res.json(user);
+    } catch (e) {
+        res.status(500).json({ error: 'Failed to fetch user stats' });
+    }
+});
+
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
     cors: {

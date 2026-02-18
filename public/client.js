@@ -97,6 +97,7 @@ class FarkleClient {
                 muteBtn: document.getElementById('mute-btn'),
                 volumeIcon: document.getElementById('volume-icon'),
                 statsContent: document.getElementById('stats-content'),
+                statsModal: document.getElementById('stats-modal'), // Fix: missing reference
                 statsBtn: document.getElementById('stats-btn'),
                 headerLoginBtn: document.getElementById('header-login-btn')
             };
@@ -622,7 +623,7 @@ class FarkleClient {
         const lbBtn = document.createElement('button');
         lbBtn.className = 'btn secondary small';
         lbBtn.innerHTML = '🏆 Leaderboard';
-        lbBtn.onclick = () => this.showLeaderboard();
+        lbBtn.onclick = () => this.showStats();
 
         const myStatsBtn = document.createElement('button');
         myStatsBtn.className = 'btn secondary small';
@@ -633,131 +634,62 @@ class FarkleClient {
         statsRow.appendChild(myStatsBtn);
     }
 
-    async showLeaderboard() {
-        const modal = this.getStatsModal();
-        const content = document.getElementById('stats-content') || modal.querySelector('.modal-content-body');
-        if (content) content.innerHTML = '<p>Loading...</p>';
-        modal.classList.remove('hidden');
-
-        try {
-            const res = await fetch('/api/stats/leaderboard'); // Fixed endpoint to match server.js
-            const data = await res.json();
-
-            if (!Array.isArray(data)) throw new Error("Invalid data");
-
-            let html = '<table style="width:100%; text-align:left; border-collapse: collapse;"><tr><th style="padding:8px; border-bottom:1px solid #444;">Rank</th><th style="padding:8px; border-bottom:1px solid #444;">Player</th><th style="padding:8px; border-bottom:1px solid #444;">Wins</th><th style="padding:8px; border-bottom:1px solid #444;">Score</th></tr>';
-            data.forEach((row, i) => {
-                html += `<tr>
-                    <td style="padding:8px; border-bottom:1px solid #333;">#${i + 1}</td>
-                    <td style="display:flex; align-items:center; gap:8px; padding:8px; border-bottom:1px solid #333;">
-                        ${row.avatar ? `<img src="https://cdn.discordapp.com/avatars/${row.id}/${row.avatar}.png" style="width:24px;height:24px;border-radius:50%">` : ''} 
-                        ${row.name || 'Unknown'}
-                    </td>
-                    <td style="padding:8px; border-bottom:1px solid #333;">${row.wins}</td>
-                    <td style="padding:8px; border-bottom:1px solid #333;">${Number(row.totalScore).toLocaleString()}</td>
-                </tr>`;
-            });
-            html += '</table>';
-            if (content) content.innerHTML = html;
-        } catch (e) {
-            console.error("Leaderboard Error", e);
-            if (content) content.innerHTML = '<p>Error loading leaderboard. Attempting to fetch from /api/stats/leaderboard...</p>';
-        }
-    }
-
-    showStats() {
-        this.showLeaderboard();
-    }
+    // Unified stats logic below in showStats
 
     async showMyStats() {
-        const modal = this.getStatsModal();
-        const content = document.getElementById('stats-content') || modal.querySelector('.modal-content-body');
-        if (content) content.innerHTML = '<p>Loading...</p>';
-        modal.classList.remove('hidden');
+        if (!this.ui.statsModal || !this.ui.statsContent) return;
+        this.ui.statsModal.classList.remove('hidden');
+        this.ui.statsContent.innerHTML = '<p style="text-align:center">Loading your stats...</p>';
 
-        if (!this.discordId) {
-            if (this.discordSdk && this.discordSdk.mock) {
-                this.discordId = "mock_user_123";
-            } else {
-                if (content) content.innerHTML = "<p>Please play via Discord Activity to view stats.</p>";
-                return;
-            }
+        const userId = this.discordId || (this.discordSdk && this.discordSdk.mock ? "mock_user_123" : null);
+
+        if (!userId) {
+            this.ui.statsContent.innerHTML = "<p style='text-align:center; color:var(--text-muted)'>Please play via Discord Activity or log in to view stats.</p>";
+            return;
         }
 
         try {
-            const res = await fetch(`/api/stats/${this.discordId}`); // Use direct ID endpoint
-            // Endpoint in server.js isn't explicitly /api/stats/:id but we might have /api/stats?
-            // Actually server.js has /api/stats/leaderboard but check for individual stats...
-            // Checking server.js: app.get('/api/admin/stats') exists but that's global.
-            // db.getUser(id) returns stats. 
-            // We might need to add an endpoint for single user stats if it doesn't exist, 
-            // OR use what we have. 
-            // Wait, looking at server.js (viewed earlier), I didn't see a specific /api/stats/:id.
-            // But let's fix the UI error first. The 404 is a separate issue if endpoint missing.
-
+            const res = await fetch(`/api/stats/${userId}`);
             if (!res.ok) throw new Error("Stats not found");
             const data = await res.json();
             const stats = data.stats || {};
 
             const html = `
                 <div style="text-align: center; margin-bottom: 20px;">
-                    ${data.avatar ? `<img src="https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png" style="width:64px;height:64px;border-radius:50%; margin-bottom:10px;">` : ''}
-                    <h3>${data.display_name}</h3>
-                    <p style="opacity:0.7">@${data.username}</p>
+                    ${data.avatar ? `<img src="https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png" style="width:64px;height:64px;border-radius:50%; margin-bottom:10px; border: 2px solid var(--primary);">` : ''}
+                    <h3 style="margin:0">${data.display_name}</h3>
+                    <p style="opacity:0.7; font-size: 0.8rem;">@${data.username}</p>
                 </div>
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
-                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.8em; opacity: 0.7;">Games Played</div>
-                        <div style="font-size: 1.2em; font-weight: bold;">${stats.games_played || 0}</div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Games</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--primary)">${stats.games_played || 0}</div>
                     </div>
-                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.8em; opacity: 0.7;">Wins</div>
-                        <div style="font-size: 1.2em; font-weight: bold; color: gold;">${stats.wins || 0}</div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Wins</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--success)">${stats.wins || 0}</div>
                     </div>
-                    <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.8em; opacity: 0.7;">Total Score</div>
-                        <div style="font-size: 1.2em; font-weight: bold;">${Number(stats.total_score || 0).toLocaleString()}</div>
+                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Total Score</div>
+                        <div style="font-size: 1.1rem; font-weight: bold;">${Number(stats.total_score || 0).toLocaleString()}</div>
                     </div>
-                     <div style="background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.8em; opacity: 0.7;">Farkles</div>
-                        <div style="font-size: 1.2em; font-weight: bold; color: #ff6b6b;">${stats.farkles_count || 0}</div>
+                     <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Farkles</div>
+                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--danger)">${stats.farkles_count || 0}</div>
                     </div>
-                    <div style="grid-column: 1 / -1; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px;">
-                        <div style="font-size: 0.8em; opacity: 0.7;">Highest Round Score</div>
-                        <div style="font-size: 1.2em; font-weight: bold;">${Number(stats.highest_round_score || 0).toLocaleString()}</div>
+                    <div style="grid-column: 1 / -1; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
+                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Personal Best</div>
+                        <div style="font-size: 1.3rem; font-weight: bold; color: var(--accent)">${Number(stats.highest_round_score || 0).toLocaleString()}</div>
                     </div>
                 </div>
             `;
-            if (content) content.innerHTML = html;
+            this.ui.statsContent.innerHTML = html;
         } catch (e) {
-            if (content) content.innerHTML = `<p>No stats found yet. Play a game to track stats!</p>`;
+            this.ui.statsContent.innerHTML = `<p style="text-align:center; color:var(--text-muted)">No stats found yet. Play a game to track stats!</p>`;
         }
     }
 
-    getStatsModal() {
-        let modal = document.getElementById('stats-modal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'stats-modal';
-            modal.className = 'modal hidden';
-            modal.style.zIndex = "99999";
-            modal.style.pointerEvents = "auto";
-
-            modal.innerHTML = `
-                <div class="modal-content" style="pointer-events: auto;">
-                    <h2>Statistics</h2>
-                    <div id="stats-content" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;"></div>
-                    <button class="btn close-modal">Close</button>
-                </div>
-            `;
-            document.body.appendChild(modal);
-            modal.querySelector('.close-modal').onclick = () => {
-                modal.classList.add('hidden');
-                this.sounds.play('click');
-            };
-        }
-        return modal;
-    }
+    // Modal references handled in constructor/ui object
 
     initHistory() {
         window.onpopstate = (event) => {
