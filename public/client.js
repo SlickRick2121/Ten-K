@@ -315,6 +315,17 @@ class FarkleClient {
             this.showWelcome(this.playerName, user.avatar, user.id);
             this.identifyAnalytics(user);
 
+            // Notify server of the identified name if already in a room
+            if (this.roomCode && this.socket) {
+                this.socket.emit('join_game', {
+                    roomCode: this.roomCode,
+                    spectator: this.isSpectator,
+                    reconnectToken: this.reconnectToken,
+                    name: this.playerName,
+                    dbId: this.discordId || null
+                });
+            }
+
         } catch (err) {
             console.error("Discord Auth Failed/Cancelled", err);
             // Fallback to mode selection even on failure
@@ -415,8 +426,9 @@ class FarkleClient {
     joinRoom(roomCode, asSpectator = false, fromHistory = false) {
         this.debugLog(`Joining ${roomCode} (${asSpectator ? 'Spectating' : 'Playing'})...`);
 
-        let finalName = this.playerName;
-        localStorage.setItem('farkle-username', finalName);
+        this.roomCode = roomCode;
+        this.isSpectator = asSpectator;
+        localStorage.setItem('farkle-username', this.playerName);
         sessionStorage.setItem('farkle-room-code', roomCode);
 
         if (!fromHistory) {
@@ -427,7 +439,7 @@ class FarkleClient {
             roomCode: roomCode,
             spectator: asSpectator,
             reconnectToken: this.reconnectToken,
-            name: finalName,
+            name: this.playerName,
             dbId: this.discordId || null
         });
 
@@ -780,6 +792,17 @@ class FarkleClient {
                 if (this.ui.headerLoginBtn) this.ui.headerLoginBtn.style.display = 'none';
                 this.showWelcome(this.playerName, user.avatar, user.id);
                 this.identifyAnalytics(user);
+
+                // Update server with new Discord name
+                if (this.roomCode && this.socket) {
+                    this.socket.emit('join_game', {
+                        roomCode: this.roomCode,
+                        spectator: this.isSpectator,
+                        reconnectToken: this.reconnectToken,
+                        name: this.playerName,
+                        dbId: this.discordId || null
+                    });
+                }
             }
         };
 
@@ -1202,20 +1225,7 @@ class FarkleClient {
 
 
 
-    joinRoom(roomCode, asSpectator = false) {
-        this.roomCode = roomCode;
-        this.isSpectator = asSpectator;
-        sessionStorage.setItem('farkle-room-code', roomCode);
-
-        this.debugLog(`Joining ${roomCode}...`);
-        this.socket.emit('join_game', {
-            roomCode: roomCode,
-            asSpectator: asSpectator,
-            reconnectToken: this.reconnectToken,
-            name: this.playerName,
-            dbId: this.discordId || null
-        });
-    }
+    // Unified join logic moved up
 
     joinGame() {
         this.debugLog(`Joining Game...`);
@@ -1648,20 +1658,17 @@ class FarkleClient {
                 const isValid = isScoringSelection(selectedDice.map(d => d.value), this.rules);
                 if (isValid) {
                     this.ui.rollBtn.disabled = false;
-                    this.ui.rollBtn.textContent = "Roll Remaining";
+                    this.ui.rollBtn.textContent = (selectedDice.length === this.gameState.currentDice.length) ? "Roll Hot Dice!" : "Roll Remaining";
                     this.ui.bankBtn.disabled = false;
                 } else {
                     this.ui.rollBtn.disabled = true;
-                    this.ui.bankBtn.disabled = true;
+                    this.ui.bankBtn.disabled = (this.gameState.roundAccumulatedScore === 0);
+
                     if (this.gameState.currentDice.length === 6 && this.gameState.roundAccumulatedScore > 0 && !selectedDice.length) {
-                        this.ui.actionText.textContent = "HOT DICE! Select to continue!";
+                        this.ui.actionText.textContent = "HOT DICE! Select scoring dice or Bank.";
                     } else {
                         this.ui.actionText.textContent = "Select scoring dice!";
                     }
-                }
-
-                if (this.gameState.currentDice.length > 0 && selectedDice.length === this.gameState.currentDice.length) {
-                    this.ui.rollBtn.textContent = "Roll Hot Dice!";
                 }
             }
         }

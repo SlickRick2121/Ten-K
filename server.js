@@ -446,6 +446,11 @@ class GameState {
             this.currentPlayerIndex = 0;
             this.turnStartTime = Date.now(); // Reset AFK timer on start
             this.reminded = false;
+
+            // Reset Final Round State for new game
+            this.isFinalRound = false;
+            this.finalRoundTriggeredBy = null;
+
             this.resetRound();
             console.log(`[Game ${this.roomCode}] Started with ${connectedCount} players.`);
             return true;
@@ -941,6 +946,7 @@ io.on('connection', (socket) => {
             }
 
             if (isSpectator) {
+                socket.playerName = data?.name || "Spectator";
                 game.addSpectator(socket.id);
                 socket.join(roomCode);
                 socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: true });
@@ -972,6 +978,7 @@ io.on('connection', (socket) => {
                 return;
             }
 
+            socket.playerName = name;
             game.addPlayer(socket.id, name, data?.reconnectToken, data?.dbId);
             socket.join(roomCode);
             socket.emit('joined', { playerId: socket.id, state: game.getState(), isSpectator: false });
@@ -1026,6 +1033,8 @@ io.on('connection', (socket) => {
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
+                            currentG.isFinalRound = false;
+                            currentG.finalRoundTriggeredBy = null;
                             currentG.resetRound();
                             io.emit('room_list', getRoomList());
                         }
@@ -1129,8 +1138,7 @@ io.on('connection', (socket) => {
             // Checking join_game: "spectators.push(socket.id)" - yes just IDs.
             // So spectators are anonymous in chat unless `socket.handshake.auth.name` or similar was persisted.
             // socket.handshake.auth.name is sent by client on connection!
-            senderName = socket.handshake.auth.name || "Spectator";
-            senderName = socket.handshake.auth.name || "Unknown";
+            senderName = socket.playerName || socket.handshake.auth.name || "Spectator";
         }
 
         // Sanitize?
@@ -1273,6 +1281,8 @@ io.on('connection', (socket) => {
                         if (currentG && currentG.players.filter(pl => pl.connected).length === 0) {
                             currentG.players = [];
                             currentG.gameStatus = 'waiting';
+                            currentG.isFinalRound = false;
+                            currentG.finalRoundTriggeredBy = null;
                             currentG.resetRound();
                             io.emit('room_list', getRoomList());
                         }

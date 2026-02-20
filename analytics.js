@@ -3,7 +3,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const UAParser = require('ua-parser-js');
+const { UAParser } = require('ua-parser-js');
 import fetch from 'node-fetch';
 
 const __filename = fileURLToPath(import.meta.url);
