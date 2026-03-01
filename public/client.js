@@ -2035,22 +2035,38 @@ class SoundManager {
         this.masterVolume = 0.25;
         this.masterGain = null;
         this.reverbNode = null;
+        this.unlocked = false;
 
-        const unlock = () => {
-            if (this.ctx) return;
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = this.masterVolume;
-            this.masterGain.connect(this.ctx.destination);
+        const unlock = async () => {
+            if (this.unlocked) return;
+            try {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    await this.ctx.resume();
+                }
 
-            this.setupReverb();
-            if (this.ctx.state === 'suspended') this.ctx.resume();
+                if (!this.masterGain) {
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = this.masterVolume;
+                    this.masterGain.connect(this.ctx.destination);
+                    this.setupReverb();
+                }
 
-            window.removeEventListener('click', unlock);
-            window.removeEventListener('keydown', unlock);
+                this.unlocked = true;
+                console.log("[SoundManager] Context Unlocked & Resumed");
+
+                window.removeEventListener('click', unlock);
+                window.removeEventListener('keydown', unlock);
+                window.removeEventListener('touchstart', unlock);
+            } catch (e) {
+                console.warn("[SoundManager] Unlock failed", e);
+            }
         };
         window.addEventListener('click', unlock);
         window.addEventListener('keydown', unlock);
+        window.addEventListener('touchstart', unlock);
     }
 
     async setupReverb() {
@@ -2088,9 +2104,8 @@ class SoundManager {
     }
 
     play(name) {
-        if (!this.enabled || !this.ctx) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        this.updateGain(); // Ensure gain is synced before playing
+        if (!this.enabled || !this.ctx || !this.unlocked) return;
+        this.updateGain();
 
         const now = this.ctx.currentTime;
 
