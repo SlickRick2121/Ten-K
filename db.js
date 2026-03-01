@@ -58,16 +58,6 @@ const init = async () => {
 const initDB = async () => {
     if (dbType === 'postgres') {
         try {
-            // Migration check: If 'mode' doesn't exist, drop user_stats once to recreate with new PK
-            const checkMode = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='user_stats' AND column_name='mode'`);
-            if (checkMode.rowCount === 0) {
-                const checkTable = await pool.query(`SELECT * FROM information_schema.tables WHERE table_name='user_stats'`);
-                if (checkTable.rowCount > 0) {
-                    console.warn("[Migration] Dropping old user_stats to support per-mode tracking...");
-                    await pool.query(`DROP TABLE user_stats CASCADE`);
-                }
-            }
-
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS users (
                     id VARCHAR(255) PRIMARY KEY,
@@ -92,20 +82,12 @@ const initDB = async () => {
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 );
             `);
-            // console.log("Postgres Tables Initialized");
+            console.log("✅ Postgres Schema Verified.");
         } catch (err) {
-            console.error("Failed to initialize Postgres tables:", err);
+            console.error("❌ Postgres Init Failed:", err.message);
         }
     } else if (dbType === 'sqlite') {
         try {
-            // Migration check: sqlite
-            const columns = sqliteDb.prepare("PRAGMA table_info('user_stats')").all();
-            const hasMode = columns.some(c => c.name === 'mode');
-            if (columns.length > 0 && !hasMode) {
-                console.warn("[Migration] Dropping old SQLite user_stats for per-mode tracking...");
-                sqliteDb.prepare("DROP TABLE user_stats").run();
-            }
-
             sqliteDb.prepare(`
                 CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY,
@@ -130,9 +112,9 @@ const initDB = async () => {
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             `).run();
-            // console.log("SQLite Tables Initialized");
+            console.log("✅ SQLite Schema Verified.");
         } catch (err) {
-            console.error("Failed to initialize SQLite tables:", err);
+            console.error("❌ SQLite Init Failed:", err.message);
         }
     }
 };
@@ -213,6 +195,7 @@ export const db = {
                 const res = await pool.query(query, [userData.id, userData.username, displayName, userData.avatar, now]);
                 await pool.query(`INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [userData.id]);
                 const stats = await pool.query(`SELECT * FROM user_stats WHERE user_id = $1`, [userData.id]);
+                console.log(`[DB] Upserted User: ${userData.username} (${userData.id})`);
                 return { ...res.rows[0], stats: stats.rows[0] };
 
             } else if (dbType === 'sqlite') {
@@ -242,6 +225,7 @@ export const db = {
 
                 sqliteDb.prepare(`INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)`).run(userData.id);
                 const statsRow = sqliteDb.prepare(`SELECT * FROM user_stats WHERE user_id = ?`).get(userData.id);
+                console.log(`[DB] Upserted User (SQLite): ${userData.username}`);
                 return { ...userRow, stats: statsRow };
             }
         } catch (e) {
@@ -304,6 +288,7 @@ export const db = {
                         farkles_count = farkles_count + ?
                     WHERE user_id = ? AND mode = ?
                 `).run(isWin ? 1 : 0, score, maxRoundScore, farkles, userId, mode);
+                console.log(`[DB] Recorded Game End for ${userId} [Mode: ${mode}, Win: ${isWin}]`);
             }
         } catch (e) {
             console.error("recordGameEnd Error", e);

@@ -599,6 +599,7 @@ class GameState {
             });
         }
         this.currentDice = newDice;
+        console.log(`[Game ${this.roomCode}] ${player.name} ROLLED: ${newDice.map(d => d.value).join(', ')} (Selection Score: ${scoreFromSelection}, HighStakes: ${this.highStakesAttempt})`);
 
         const rolledValues = newDice.map(d => d.value);
         let farkle = false;
@@ -715,7 +716,11 @@ class GameState {
         this.checkWinCondition();
 
         if (this.gameStatus !== 'finished') {
+            console.log(`[Game ${this.roomCode}] ${player.name} BANKED ${this.roundAccumulatedScore}. Total Score: ${player.score}`);
+            this.roundAccumulatedScore = 0;
             this.nextTurn();
+
+            return { success: true };
         } else {
             this.turnStartTime = Date.now();
             this.reminded = false;
@@ -739,6 +744,7 @@ class GameState {
         this.previousPlayerLeftoverDice = 0;
         this.roundAccumulatedScore = 0;
         this.nextTurn();
+        console.log(`[Game ${this.roomCode}] Player ${player.name} FARKLED.`);
     }
 
     nextTurn() {
@@ -778,6 +784,7 @@ class GameState {
         this.reminded = false;
 
         if (this.isFinalRound && this.currentPlayerIndex === this.finalRoundTriggeredBy) {
+            console.log(`[Game ${this.roomCode}] Final round concluded.`);
             this.endGame();
         }
     }
@@ -793,6 +800,7 @@ class GameState {
         }
         const sorted = [...this.players].sort((a, b) => b.score - a.score);
         this.winner = (sorted.length > 1 && sorted[0].score === sorted[1].score) ? 'tie' : sorted[0];
+        console.log(`[Game ${this.roomCode}] Ended. Winner: ${this.winner === 'tie' ? 'Tie' : this.winner.name}`);
 
         // Record Stats
         for (const p of this.players) {
