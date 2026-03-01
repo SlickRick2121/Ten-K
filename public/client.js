@@ -218,9 +218,17 @@ class FarkleClient {
             }
 
             this.debugLog("Initializing Discord SDK...");
-            this.discordSdk = new DiscordSDK({
-                clientId: DISCORD_CLIENT_ID,
-            });
+
+            // CRITICAL FIX: Only init SDK if frame_id exists (indicates we are inside Discord Activity)
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('frame_id')) {
+                this.discordSdk = new DiscordSDK({
+                    clientId: DISCORD_CLIENT_ID,
+                });
+            } else {
+                this.debugLog("No frame_id found. Running in Web/Standalone mode.");
+                this.addDebugMessage('ℹ️ Running in Web Mode');
+            }
 
             // 1. Session Restoration & Verification
             let hasRestoredSession = false;
@@ -258,20 +266,23 @@ class FarkleClient {
                 }
             }
 
-            // 2. Wait for SDK if we're in the Discord Activity client
-            const readyTimeout = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('SDK ready timeout (5s)')), 5000)
-            );
+            // 2. Wait for SDK if we're in the Discord Activity client (indicated by presence of this.discordSdk)
+            if (this.discordSdk) {
+                const readyTimeout = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('SDK ready timeout (5s)')), 5000)
+                );
 
-            try {
-                await Promise.race([this.discordSdk.ready(), readyTimeout]);
-                if (this.discordSdk.instanceId) {
-                    this.activityInstanceId = this.discordSdk.instanceId;
-                    this.addDebugMessage(`🔗 Activity Instance: ${this.activityInstanceId.substring(0, 8)}...`);
+                try {
+                    await Promise.race([this.discordSdk.ready(), readyTimeout]);
+                    if (this.discordSdk.instanceId) {
+                        this.activityInstanceId = this.discordSdk.instanceId;
+                        this.addDebugMessage(`🔗 Activity Instance: ${this.activityInstanceId.substring(0, 8)}...`);
+                    }
+                } catch (readyErr) {
+                    this.addDebugMessage(`ℹ️ Bridge Ready Timeout`);
                 }
-            } catch (readyErr) {
-                this.addDebugMessage(`ℹ️ Proceeding outside Discord Bridge`);
-                // If we're on web and the SDK times out, that's expected.
+            } else {
+                this.addDebugMessage(`ℹ️ Standard Web Mode`);
             }
 
             // 3. Prompt for Auth only if no valid session
