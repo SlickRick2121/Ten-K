@@ -424,7 +424,7 @@ class GameState {
             this.hostId = id;
         }
 
-        this.players.push({
+        const player = {
             id,
             name,
             score: 0,
@@ -435,10 +435,22 @@ class GameState {
             missedTurns: 0,
             dbId: dbId || null,
             avatar: null, // Initial placeholder
-            farkles: 0,
             maxRoundScore: 0,
             seat: seat // Assign seat
-        });
+        };
+
+        // Try to fetch real avatar/name from DB if dbId is present
+        if (dbId) {
+            db.getUser(dbId).then(user => {
+                if (user) {
+                    player.avatar = user.avatar;
+                    if (user.display_name) player.name = user.display_name;
+                    // Note: This is async, will update via state sync once resolved
+                }
+            }).catch(e => { });
+        }
+
+        this.players.push(player);
 
         // Keep players sorted by seat for consistent turn order
         this.players.sort((a, b) => a.seat - b.seat);
@@ -787,7 +799,7 @@ class GameState {
             const isWin = (this.winner !== 'tie' && p.id === this.winner.id);
             try {
                 if (p.dbId) {
-                    await db.recordGameEnd(p.dbId, isWin, p.score, p.maxRoundScore || 0, p.farkles || 0);
+                    await db.recordGameEnd(p.dbId, isWin, p.score, p.maxRoundScore || 0, p.farkles || 0, this.rules.category || 'casual');
                 }
             } catch (e) { console.error("Stats Error:", e); }
         }
@@ -1128,9 +1140,10 @@ io.on('connection', (socket) => {
                 if (dbId) {
                     try {
                         const user = await db.getUser(dbId);
-                        if (user && user.display_name) {
-                            existingPlayer.name = user.display_name;
-                            console.log(`[Game ${roomCode}] Verified Reconnect Name for ${dbId}: ${existingPlayer.name}`);
+                        if (user) {
+                            if (user.display_name) existingPlayer.name = user.display_name;
+                            if (user.avatar) existingPlayer.avatar = user.avatar;
+                            console.log(`[Game ${roomCode}] Verified identity for ${dbId}: ${existingPlayer.name}`);
                         }
                     } catch (e) {
                         console.error("Reconnect Name Lookup Failed", e);

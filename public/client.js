@@ -694,12 +694,12 @@ class FarkleClient {
 
     // Unified stats logic below in showStats
 
-    async showMyStats() {
+    async showMyStats(targetId = null) {
         if (!this.ui.statsModal || !this.ui.statsContent) return;
         this.ui.statsModal.classList.remove('hidden');
-        this.ui.statsContent.innerHTML = '<p style="text-align:center">Loading your stats...</p>';
+        this.ui.statsContent.innerHTML = '<p style="text-align:center">Loading stats...</p>';
 
-        const userId = this.discordId || (this.discordSdk && this.discordSdk.mock ? "mock_user_123" : null);
+        const userId = targetId || this.discordId || (this.discordSdk && this.discordSdk.mock ? "mock_user_123" : null);
 
         if (!userId) {
             this.ui.statsContent.innerHTML = "<p style='text-align:center; color:var(--text-muted)'>Please play via Discord Activity or log in to view stats.</p>";
@@ -710,44 +710,72 @@ class FarkleClient {
             const res = await fetch(`/api/stats/${userId}`);
             if (!res.ok) throw new Error("Stats not found");
             const data = await res.json();
-            const stats = data.stats || {};
+            const statsMap = data.stats || {};
 
-            const html = `
-                <div style="text-align: center; margin-bottom: 20px;">
-                    ${data.avatar ? `<img src="https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png" style="width:64px;height:64px;border-radius:50%; margin-bottom:10px; border: 2px solid var(--primary);">` : ''}
-                    <h3 style="margin:0">${data.display_name}</h3>
-                    <p style="opacity:0.7; font-size: 0.8rem;">@${data.username}</p>
-                </div>
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; text-align: center;">
-                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Games</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--primary)">${stats.games_played || 0}</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Wins</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--success)">${stats.wins || 0}</div>
-                    </div>
-                    <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Total Score</div>
-                        <div style="font-size: 1.1rem; font-weight: bold;">${Number(stats.total_score || 0).toLocaleString()}</div>
-                    </div>
-                     <div style="background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Farkles</div>
-                        <div style="font-size: 1.2rem; font-weight: bold; color: var(--danger)">${stats.farkles_count || 0}</div>
-                    </div>
-                    <div style="grid-column: 1 / -1; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.05);">
-                        <div style="font-size: 0.7rem; opacity: 0.6; text-transform: uppercase;">Personal Best</div>
-                        <div style="font-size: 1.3rem; font-weight: bold; color: var(--accent)">${Number(stats.highest_round_score || 0).toLocaleString()}</div>
+            // Calculate Global Combined Stats
+            const combined = {
+                games_played: 0,
+                wins: 0,
+                total_score: 0,
+                highest_round_score: 0,
+                farkles_count: 0
+            };
+
+            Object.values(statsMap).forEach(s => {
+                combined.games_played += s.games_played || 0;
+                combined.wins += s.wins || 0;
+                combined.total_score += s.total_score || 0;
+                combined.highest_round_score = Math.max(combined.highest_round_score, s.highest_round_score || 0);
+                combined.farkles_count += s.farkles_count || 0;
+            });
+
+            const renderSection = (title, s, color = 'var(--primary)') => `
+                <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 15px;">
+                    <h4 style="margin: 0 0 10px 0; color: ${color}; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 1px;">${title}</h4>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; text-align: center;">
+                        <div style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px;">
+                            <div style="font-size: 0.6rem; opacity: 0.5;">GAMES</div>
+                            <div style="font-size: 1rem; font-weight: bold;">${s.games_played || 0}</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px;">
+                            <div style="font-size: 0.6rem; opacity: 0.5;">WINS</div>
+                            <div style="font-size: 1rem; font-weight: bold; color: var(--success)">${s.wins || 0}</div>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.03); padding: 8px; border-radius: 8px;">
+                            <div style="font-size: 0.6rem; opacity: 0.5;">PB</div>
+                            <div style="font-size: 1rem; font-weight: bold; color: var(--accent)">${(s.highest_round_score || 0).toLocaleString()}</div>
+                        </div>
                     </div>
                 </div>
             `;
+
+            const avatarUrl = data.avatar
+                ? `https://cdn.discordapp.com/avatars/${data.id}/${data.avatar}.png`
+                : `https://cdn.discordapp.com/embed/avatars/${parseInt(data.id || 0) % 5}.png`;
+
+            const html = `
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <img src="${avatarUrl}" style="width:72px; height:72px; border-radius: 50%; margin-bottom: 12px; border: 3px solid var(--primary); box-shadow: 0 0 15px var(--primary-low);">
+                    <h3 style="margin:0; font-size: 1.4rem;">${data.display_name}</h3>
+                    <p style="opacity:0.6; font-size: 0.85rem; margin-top: 4px;">@${data.username}</p>
+                </div>
+                
+                ${renderSection('Combined Performance', combined, 'var(--accent)')}
+                ${renderSection('Regular Casual Mode', statsMap.casual || {}, 'var(--primary)')}
+                ${renderSection('Speed Blitz Mode', statsMap.speed || {}, 'var(--warning)')}
+                
+                <div style="margin-top: 20px; background: rgba(var(--primary-rgb), 0.1); padding: 15px; border-radius: 12px; text-align: center;">
+                    <div style="font-size: 0.7rem; opacity: 0.7; margin-bottom: 5px;">LIFETIME TOTAL SCORE</div>
+                    <div style="font-size: 1.5rem; font-weight: bold; font-family: 'Outfit', sans-serif;">${combined.total_score.toLocaleString()}</div>
+                    <div style="font-size: 0.7rem; opacity: 0.5; margin-top: 10px;">Average Win Rate: ${combined.games_played > 0 ? Math.round((combined.wins / combined.games_played) * 100) : 0}%</div>
+                </div>
+            `;
             this.ui.statsContent.innerHTML = html;
-        } catch (e) {
-            this.ui.statsContent.innerHTML = `<p style="text-align:center; color:var(--text-muted)">No stats found yet. Play a game to track stats!</p>`;
+        } catch (err) {
+            console.error(err);
+            this.ui.statsContent.innerHTML = `<p style="text-align:center; color:var(--danger)">Failed to load stats history.</p>`;
         }
     }
-
-    // Modal references handled in constructor/ui object
 
     initHistory() {
         window.onpopstate = (event) => {
@@ -1408,11 +1436,13 @@ class FarkleClient {
 
                 const avatarImg = document.createElement('img');
                 avatarImg.src = avatarUrl;
+                avatarImg.onerror = () => {
+                    avatarImg.src = `https://cdn.discordapp.com/embed/avatars/${parseInt(player.dbId || 0) % 5}.png`;
+                };
                 avatarImg.style.width = '24px';
                 avatarImg.style.height = '24px';
                 avatarImg.style.borderRadius = '50%';
                 avatarImg.style.border = '1px solid var(--primary)';
-                avatarImg.onerror = () => { avatarImg.src = 'https://cdn.discordapp.com/embed/avatars/0.png'; };
 
                 const infoWrapper = document.createElement('div');
                 infoWrapper.style.flex = '1';
@@ -1439,6 +1469,14 @@ class FarkleClient {
                 content.appendChild(infoWrapper);
 
                 card.appendChild(content);
+
+                // --- NEW: Inspect Player Stats ---
+                if (player.dbId) {
+                    card.style.cursor = 'pointer';
+                    card.title = "View Player Stats";
+                    card.onclick = () => this.showMyStats(player.dbId);
+                    card.classList.add('inspectable');
+                }
 
                 // Host Badge
                 if (this.gameState.hostId === player.id) {
@@ -2046,22 +2084,38 @@ class SoundManager {
         this.masterVolume = 0.25;
         this.masterGain = null;
         this.reverbNode = null;
+        this.unlocked = false;
 
-        const unlock = () => {
-            if (this.ctx) return;
-            this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = this.masterVolume;
-            this.masterGain.connect(this.ctx.destination);
+        const unlock = async () => {
+            if (this.unlocked) return;
+            try {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (this.ctx.state === 'suspended') {
+                    await this.ctx.resume();
+                }
 
-            this.setupReverb();
-            if (this.ctx.state === 'suspended') this.ctx.resume();
+                if (!this.masterGain) {
+                    this.masterGain = this.ctx.createGain();
+                    this.masterGain.gain.value = this.masterVolume;
+                    this.masterGain.connect(this.ctx.destination);
+                    this.setupReverb();
+                }
 
-            window.removeEventListener('click', unlock);
-            window.removeEventListener('keydown', unlock);
+                this.unlocked = true;
+                console.log("[SoundManager] Context Unlocked & Resumed");
+
+                window.removeEventListener('click', unlock);
+                window.removeEventListener('keydown', unlock);
+                window.removeEventListener('touchstart', unlock);
+            } catch (e) {
+                console.warn("[SoundManager] Unlock failed", e);
+            }
         };
         window.addEventListener('click', unlock);
         window.addEventListener('keydown', unlock);
+        window.addEventListener('touchstart', unlock);
     }
 
     async setupReverb() {
@@ -2099,9 +2153,8 @@ class SoundManager {
     }
 
     play(name) {
-        if (!this.enabled || !this.ctx) return;
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-        this.updateGain(); // Ensure gain is synced before playing
+        if (!this.enabled || !this.ctx || !this.unlocked) return;
+        this.updateGain();
 
         const now = this.ctx.currentTime;
 

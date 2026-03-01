@@ -58,6 +58,16 @@ const init = async () => {
 const initDB = async () => {
     if (dbType === 'postgres') {
         try {
+            // Migration check: If 'mode' doesn't exist, drop user_stats once to recreate with new PK
+            const checkMode = await pool.query(`SELECT column_name FROM information_schema.columns WHERE table_name='user_stats' AND column_name='mode'`);
+            if (checkMode.rowCount === 0) {
+                const checkTable = await pool.query(`SELECT * FROM information_schema.tables WHERE table_name='user_stats'`);
+                if (checkTable.rowCount > 0) {
+                    console.warn("[Migration] Dropping old user_stats to support per-mode tracking...");
+                    await pool.query(`DROP TABLE user_stats CASCADE`);
+                }
+            }
+
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS users (
                     id VARCHAR(255) PRIMARY KEY,
@@ -71,12 +81,14 @@ const initDB = async () => {
 
             await pool.query(`
                 CREATE TABLE IF NOT EXISTS user_stats (
-                    user_id VARCHAR(255) PRIMARY KEY,
+                    user_id VARCHAR(255),
+                    mode VARCHAR(50) DEFAULT 'casual',
                     games_played INTEGER DEFAULT 0,
                     wins INTEGER DEFAULT 0,
                     total_score INTEGER DEFAULT 0,
                     highest_round_score INTEGER DEFAULT 0,
                     farkles_count INTEGER DEFAULT 0,
+                    PRIMARY KEY (user_id, mode),
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 );
             `);
@@ -86,6 +98,14 @@ const initDB = async () => {
         }
     } else if (dbType === 'sqlite') {
         try {
+            // Migration check: sqlite
+            const columns = sqliteDb.prepare("PRAGMA table_info('user_stats')").all();
+            const hasMode = columns.some(c => c.name === 'mode');
+            if (columns.length > 0 && !hasMode) {
+                console.warn("[Migration] Dropping old SQLite user_stats for per-mode tracking...");
+                sqliteDb.prepare("DROP TABLE user_stats").run();
+            }
+
             sqliteDb.prepare(`
                 CREATE TABLE IF NOT EXISTS users (
                     id TEXT PRIMARY KEY,
@@ -99,12 +119,14 @@ const initDB = async () => {
 
             sqliteDb.prepare(`
                 CREATE TABLE IF NOT EXISTS user_stats (
-                    user_id TEXT PRIMARY KEY,
+                    user_id TEXT,
+                    mode TEXT DEFAULT 'casual',
                     games_played INTEGER DEFAULT 0,
                     wins INTEGER DEFAULT 0,
                     total_score INTEGER DEFAULT 0,
                     highest_round_score INTEGER DEFAULT 0,
                     farkles_count INTEGER DEFAULT 0,
+                    PRIMARY KEY (user_id, mode),
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             `).run();
@@ -234,12 +256,23 @@ export const db = {
                 const userRes = await pool.query(`SELECT * FROM users WHERE id = $1`, [id]);
                 if (userRes.rows.length === 0) return null;
                 const statsRes = await pool.query(`SELECT * FROM user_stats WHERE user_id = $1`, [id]);
-                return { ...userRes.rows[0], stats: statsRes.rows[0] };
+
+                // Group stats by mode
+                const statsMap = {};
+                statsRes.rows.forEach(s => {
+                    statsMap[s.mode] = s;
+                });
+                return { ...userRes.rows[0], stats: statsMap };
             } else if (dbType === 'sqlite') {
                 const userRow = sqliteDb.prepare(`SELECT * FROM users WHERE id = ?`).get(id);
                 if (!userRow) return null;
-                const statsRow = sqliteDb.prepare(`SELECT * FROM user_stats WHERE user_id = ?`).get(id);
-                return { ...userRow, stats: statsRow };
+                const statsRows = sqliteDb.prepare(`SELECT * FROM user_stats WHERE user_id = ?`).all(id);
+
+                const statsMap = {};
+                statsRows.forEach(s => {
+                    statsMap[s.mode] = s;
+                });
+                return { ...userRow, stats: statsMap };
             }
         } catch (e) {
             console.error("getUser Error", e);
@@ -247,10 +280,10 @@ export const db = {
         }
     },
 
-    recordGameEnd: async (userId, isWin, score, maxRoundScore, farkles) => {
+    recordGameEnd: async (userId, isWin, score, maxRoundScore, farkles, mode = 'casual') => {
         try {
             if (dbType === 'postgres') {
-                await pool.query(`INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [userId]);
+                await pool.query(`INSERT INTO user_stats (user_id, mode) VALUES ($1, $2) ON CONFLICT (user_id, mode) DO NOTHING`, [userId, mode]);
                 await pool.query(`
                     UPDATE user_stats SET 
                         games_played = games_played + 1,
@@ -258,10 +291,10 @@ export const db = {
                         total_score = total_score + $2,
                         highest_round_score = GREATEST(highest_round_score, $3),
                         farkles_count = farkles_count + $4
-                    WHERE user_id = $5
-                `, [isWin ? 1 : 0, score, maxRoundScore, farkles, userId]);
+                    WHERE user_id = $5 AND mode = $6
+                `, [isWin ? 1 : 0, score, maxRoundScore, farkles, userId, mode]);
             } else if (dbType === 'sqlite') {
-                sqliteDb.prepare(`INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)`).run(userId);
+                sqliteDb.prepare(`INSERT OR IGNORE INTO user_stats (user_id, mode) VALUES (?, ?)`).run(userId, mode);
                 sqliteDb.prepare(`
                     UPDATE user_stats SET 
                         games_played = games_played + 1,
@@ -269,8 +302,8 @@ export const db = {
                         total_score = total_score + ?,
                         highest_round_score = MAX(highest_round_score, ?),
                         farkles_count = farkles_count + ?
-                    WHERE user_id = ?
-                `).run(isWin ? 1 : 0, score, maxRoundScore, farkles, userId);
+                    WHERE user_id = ? AND mode = ?
+                `).run(isWin ? 1 : 0, score, maxRoundScore, farkles, userId, mode);
             }
         } catch (e) {
             console.error("recordGameEnd Error", e);
