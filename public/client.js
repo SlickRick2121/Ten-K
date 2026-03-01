@@ -222,59 +222,60 @@ class FarkleClient {
                 clientId: DISCORD_CLIENT_ID,
             });
 
-            // 1. Check for existing local session (Already pulled at start of function)
+            // 1. Session Restoration & Verification
             let hasRestoredSession = false;
             if (savedToken && savedUser) {
                 try {
                     const user = JSON.parse(savedUser);
-                    this.playerName = user.global_name || user.username;
-                    this.discordId = user.id;
+                    this.addDebugMessage('⏳ Verifying existing session...');
 
-                    // Show Welcome
-                    this.showWelcome(this.playerName, user.avatar, user.id);
+                    const verifyResponse = await fetch('/api/auth/verify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ access_token: savedToken })
+                    });
 
-                    // Helper to track analytics for restored session
-                    this.identifyAnalytics(user);
+                    if (verifyResponse.ok) {
+                        const verifyData = await verifyResponse.json();
+                        const verifiedUser = verifyData.user;
 
-                    hasRestoredSession = true;
-                    // Don't return early — still need SDK ready for instanceId
+                        this.playerName = verifiedUser.global_name || verifiedUser.username;
+                        this.discordId = verifiedUser.id;
+                        localStorage.setItem('farkle_user_data', JSON.stringify(verifiedUser));
+
+                        this.showWelcome(this.playerName, verifiedUser.avatar, verifiedUser.id);
+                        this.identifyAnalytics(verifiedUser);
+
+                        hasRestoredSession = true;
+                        this.addDebugMessage('✅ Session Restored');
+                    } else {
+                        this.debugLog("Restored session invalid/expired. Clearing storage.");
+                        localStorage.removeItem('farkle_auth_token');
+                        localStorage.removeItem('farkle_user_data');
+                    }
                 } catch (e) {
-                    localStorage.removeItem('farkle_auth_token');
-                    localStorage.removeItem('farkle_user_data');
+                    this.debugLog("Session check failed: " + e.message);
                 }
-            } else {
             }
 
-            // 2. Proceed with Discord SDK Auth if no session
-
-
-            // Add a timeout to SDK ready
+            // 2. Wait for SDK if we're in the Discord Activity client
             const readyTimeout = new Promise((_, reject) =>
                 setTimeout(() => reject(new Error('SDK ready timeout (5s)')), 5000)
             );
 
             try {
                 await Promise.race([this.discordSdk.ready(), readyTimeout]);
-            } catch (readyErr) {
-                this.addDebugMessage(`❌ SDK Ready failed`);
-                // If we have a restored session, we can still proceed without instanceId
-                if (hasRestoredSession) {
-                    const modeSelection = document.getElementById('mode-selection');
-                    if (modeSelection) modeSelection.style.display = 'block';
-                    return;
+                if (this.discordSdk.instanceId) {
+                    this.activityInstanceId = this.discordSdk.instanceId;
+                    this.addDebugMessage(`🔗 Activity Instance: ${this.activityInstanceId.substring(0, 8)}...`);
                 }
-                throw readyErr;
+            } catch (readyErr) {
+                this.addDebugMessage(`ℹ️ Proceeding outside Discord Bridge`);
+                // If we're on web and the SDK times out, that's expected.
             }
 
-            // Capture instanceId for Activity room coordination
-            if (this.discordSdk.instanceId) {
-                this.activityInstanceId = this.discordSdk.instanceId;
-                this.addDebugMessage(`🔗 Activity Instance: ${this.activityInstanceId.substring(0, 8)}...`);
-            }
-
-            // If we already have a restored session, skip full auth flow
+            // 3. Prompt for Auth only if no valid session
             if (hasRestoredSession) {
-                // Init socket now so we can use instanceId for room coordination
                 this.initSocket();
                 return;
             }

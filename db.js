@@ -149,12 +149,20 @@ export const db = {
     },
 
     upsertUser: async (userData) => {
-        const displayName = userData.global_name || userData.username;
+        // Priority: global_name (nickname) -> username (unique string) -> random fallback
+        // ALWAYS avoid using ID as a name.
+        let displayName = userData.global_name || userData.username;
+
+        // If the name is just a number (likely ID being passed as name by mistake or placeholder)
+        if (displayName && /^\d+$/.test(displayName)) {
+            displayName = `Player ${displayName.substring(0, 4)}`;
+        }
+
         const now = new Date();
         const nowISO = now.toISOString();
 
         // Protection: Don't overwrite a real Discord name with a generic "Player XXXX" name
-        const isGenericName = displayName && displayName.startsWith('Player ');
+        const isGenericName = displayName && (displayName.startsWith('Player ') || /^\d+$/.test(displayName));
 
         try {
             if (dbType === 'postgres') {
@@ -165,7 +173,6 @@ export const db = {
                 if (isGenericName && hasRealName) {
                     // Skip updating names if the new one is generic and we have a real one
                     await pool.query(`UPDATE users SET last_login = $1 WHERE id = $2`, [now, userData.id]);
-                    // Still ensure stats row exists
                     await pool.query(`INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [userData.id]);
                     const stats = await pool.query(`SELECT * FROM user_stats WHERE user_id = $1`, [userData.id]);
                     return { ...existing.rows[0], stats: stats.rows[0] };
@@ -182,22 +189,16 @@ export const db = {
                 RETURNING *
             `;
                 const res = await pool.query(query, [userData.id, userData.username, displayName, userData.avatar, now]);
-
-                // Ensure stats row exists
                 await pool.query(`INSERT INTO user_stats (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [userData.id]);
-
                 const stats = await pool.query(`SELECT * FROM user_stats WHERE user_id = $1`, [userData.id]);
                 return { ...res.rows[0], stats: stats.rows[0] };
 
             } else if (dbType === 'sqlite') {
-                // First check if user exists and has a real name
                 const existing = sqliteDb.prepare(`SELECT display_name FROM users WHERE id = ?`).get(userData.id);
                 const hasRealName = existing && existing.display_name && !existing.display_name.startsWith('Player ');
 
                 if (isGenericName && hasRealName) {
-                    // Skip updating names if the new one is generic and we have a real one
                     sqliteDb.prepare(`UPDATE users SET last_login = ? WHERE id = ?`).run(nowISO, userData.id);
-                    // Ensure stats
                     sqliteDb.prepare(`INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)`).run(userData.id);
                     const statsRow = sqliteDb.prepare(`SELECT * FROM user_stats WHERE user_id = ?`).get(userData.id);
                     return { ...existing, stats: statsRow };
@@ -207,18 +208,17 @@ export const db = {
                 INSERT INTO users (id, username, display_name, avatar, last_login)
                 VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
-                    username = excluded.username,
-                    display_name = excluded.display_name,
-                    avatar = excluded.avatar,
-                    last_login = excluded.last_login
+                    username = EXCLUDED.username,
+                    display_name = EXCLUDED.display_name,
+                    avatar = EXCLUDED.avatar,
+                    last_login = EXCLUDED.last_login
                 RETURNING *
             `;
+                // better-sqlite3 uses ? or named params, not EXCLUDED. in same way but this raw SQL is usually fine
                 const stmt = sqliteDb.prepare(query);
                 const userRow = stmt.get(userData.id, userData.username, displayName, userData.avatar, nowISO);
 
-                // Ensure stats
                 sqliteDb.prepare(`INSERT OR IGNORE INTO user_stats (user_id) VALUES (?)`).run(userData.id);
-
                 const statsRow = sqliteDb.prepare(`SELECT * FROM user_stats WHERE user_id = ?`).get(userData.id);
                 return { ...userRow, stats: statsRow };
             }
@@ -313,15 +313,24 @@ export const db = {
                 `).all();
             }
 
-            return rows.map(row => ({
-                id: row.id,
-                name: row.display_name || row.username,
-                avatar: row.avatar,
-                wins: row.wins,
-                gamesPlayed: row.games_played,
-                highestScore: row.highest_score,
-                totalScore: row.total_score
-            }));
+            return rows.map(row => {
+                let name = row.display_name || row.username;
+
+                // If name is numeric (ID leaking through as name), flag it
+                if (name && /^\d+$/.test(name)) {
+                    name = `Player ${name.substring(0, 4)}`;
+                }
+
+                return {
+                    id: row.id,
+                    name: name || "Unknown Player",
+                    avatar: row.avatar,
+                    wins: row.wins,
+                    gamesPlayed: row.games_played,
+                    highestScore: row.highest_score,
+                    totalScore: row.total_score
+                };
+            });
         } catch (e) {
             console.error("getLeaderboard Error", e);
             return [];

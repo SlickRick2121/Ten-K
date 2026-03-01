@@ -207,6 +207,28 @@ app.post('/api/token', async (req, res) => {
     }
 });
 
+// New Verification Endpoint for saved tokens
+app.post('/api/auth/verify', async (req, res) => {
+    const { access_token } = req.body;
+    if (!access_token) return res.status(400).json({ error: "Missing token" });
+
+    try {
+        const userResponse = await fetch('https://discord.com/api/users/@me', {
+            headers: { authorization: `Bearer ${access_token}` },
+        });
+
+        if (!userResponse.ok) {
+            return res.status(401).json({ error: "Token invalid or expired" });
+        }
+
+        const userData = await userResponse.json();
+        await db.upsertUser(userData); // Update last_login
+        res.json({ success: true, user: userData });
+    } catch (err) {
+        res.status(500).json({ error: "Verification Failed" });
+    }
+});
+
 // Web Discord Auth Routes
 app.get('/api/access/auth/discord', (req, res) => {
     const clientId = process.env.DISCORD_CLIENT_ID || '1455588853254717510';
