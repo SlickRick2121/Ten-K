@@ -291,62 +291,67 @@ class FarkleClient {
                 return;
             }
 
+            // --- Case A: Inside Discord Activity (SDK present) ---
+            if (this.discordSdk) {
+                try {
+                    // Authorize with Discord Client
+                    const { code } = await this.discordSdk.commands.authorize({
+                        client_id: DISCORD_CLIENT_ID,
+                        response_type: "code",
+                        state: "",
+                        scope: ["identify", "guilds"],
+                    });
 
-            // Authorize with Discord Client
-            // Removing prompt: none and redirect_uri to let Discord use its defaults
-            // and avoid RPC bridge rejection issues.
-            const { code } = await this.discordSdk.commands.authorize({
-                client_id: DISCORD_CLIENT_ID,
-                response_type: "code",
-                state: "",
-                scope: [
-                    "identify",
-                    "guilds"
-                ],
-            });
+                    // Exchange code for token via backend
+                    const response = await fetch("/api/token", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ code }),
+                    });
 
-            // Exchange code for token via backend
-            const response = await fetch("/api/token", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    code
-                }),
-            });
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        throw new Error(errData.error || `HTTP ${response.status}`);
+                    }
 
-            if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || `HTTP ${response.status}`);
+                    const { access_token, user } = await response.json();
+                    this.addDebugMessage(`✅ Token received for ${user.username}`);
+
+                    // Authenticate with Discord SDK (for channel interactions if needed later)
+                    const auth = await this.discordSdk.commands.authenticate({
+                        access_token,
+                    });
+
+                    if (auth == null) {
+                        throw new Error("Authenticate command failed via SDK");
+                    }
+                    this.addDebugMessage(`✅ Identity Verified: ${user.username}`);
+
+                    localStorage.setItem('farkle_auth_token', access_token);
+                    localStorage.setItem('farkle_user_data', JSON.stringify(user));
+
+                    this.playerName = user.global_name || user.username;
+                    this.discordId = user.id;
+
+                    this.showWelcome(this.playerName, user.avatar, user.id);
+                    this.identifyAnalytics(user);
+                    this.initSocket();
+                } catch (sdkErr) {
+                    this.addDebugMessage(`❌ SDK Auth Failed: ${sdkErr.message}`);
+                    this.debugLog(`Discord Auth Failed: ${sdkErr.stack}`);
+                }
+            } else {
+                // --- Case B: Standard Web Mode (No SDK) ---
+                this.addDebugMessage('ℹ️ Please login via the button');
+                if (this.ui.headerLoginBtn) {
+                    this.ui.headerLoginBtn.style.display = 'block';
+                    this.ui.headerLoginBtn.classList.add('pulse-glow');
+                }
+
+                // Show a generic welcome or mode selection if they aren't logged in
+                const modeSelection = document.getElementById('mode-selection');
+                if (modeSelection) modeSelection.style.display = 'block';
             }
-
-            const { access_token, user } = await response.json();
-            this.addDebugMessage(`✅ Token received for ${user.username}`);
-
-            // Authenticate with Discord SDK (for channel interactions if needed later)
-            const auth = await this.discordSdk.commands.authenticate({
-                access_token,
-            });
-
-            if (auth == null) {
-                throw new Error("Authenticate command failed via SDK");
-            }
-            this.addDebugMessage(`✅ Identity Verified: ${user.username}`);
-
-            try {
-                localStorage.setItem('farkle_auth_token', access_token);
-                localStorage.setItem('farkle_user_data', JSON.stringify(user));
-            } catch (lsErr) {
-                console.warn("Storage failed", lsErr);
-            }
-
-            this.playerName = user.global_name || user.username;
-            this.discordId = user.id;
-
-            // console.log('[WELCOME] Calling showWelcome with:', this.playerName, user.avatar, user.id);
-            this.showWelcome(this.playerName, user.avatar, user.id);
-            this.identifyAnalytics(user);
 
             // Notify server of the identified name if already in a room
             if (this.roomCode && this.socket) {
