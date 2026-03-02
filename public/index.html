@@ -266,44 +266,102 @@
         </div>
 
         <div id="settings-modal" class="modal hidden">
-            <div class="modal-content">
-                <header class="modal-header"
-                    style="display: flex; align-items: center; gap: 12px; margin-bottom: 2rem; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 1rem;">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
-                        stroke-width="2">
-                        <circle cx="12" cy="12" r="3"></circle>
-                        <path
-                            d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
-                        </path>
-                    </svg>
-                    <h2 style="margin: 0; font-size: 1.5rem; letter-spacing: 1px;">Table Settings</h2>
+            <div class="modal-content settings-panel">
+                <header class="settings-header">
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--primary)"
+                            stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                        <h2 style="margin:0;font-size:1.4rem;letter-spacing:1px;">Settings</h2>
+                    </div>
+                    <button class="close-modal settings-close-x" title="Close">✕</button>
                 </header>
-                <div class="input-group">
-                    <label>Table Felt</label>
-                    <div class="theme-options">
-                        <button class="theme-btn" data-theme="green" title="Classic Green"
-                            style="background: #1a3a2a;"></button>
-                        <button class="theme-btn" data-theme="blue" title="Deep Navy"
-                            style="background: #1a2a4a;"></button>
-                        <button class="theme-btn" data-theme="red" title="Royal Burgundy"
-                            style="background: #4a1a1a;"></button>
-                        <button class="theme-btn" data-theme="purple" title="Midnight Purple"
-                            style="background: #2a1a4a;"></button>
+
+                <div class="settings-section">
+                    <label class="settings-label">🎲 Table Felt</label>
+                    <div class="felt-grid" id="felt-grid">
+                        <button class="felt-swatch active" data-felt="emerald" title="Emerald">
+                            <div class="felt-preview" style="background:radial-gradient(circle,#1a4a2e,#0d2618);"></div>
+                            <span>Emerald</span>
+                        </button>
+                        <button class="felt-swatch" data-felt="sapphire" title="Sapphire">
+                            <div class="felt-preview" style="background:radial-gradient(circle,#1a2e4a,#0d1828);"></div>
+                            <span>Sapphire</span>
+                        </button>
+                        <button class="felt-swatch" data-felt="crimson" title="Crimson">
+                            <div class="felt-preview" style="background:radial-gradient(circle,#4a1a1a,#280d0d);"></div>
+                            <span>Crimson</span>
+                        </button>
+                        <button class="felt-swatch" data-felt="amethyst" title="Amethyst">
+                            <div class="felt-preview" style="background:radial-gradient(circle,#2e1a4a,#180d28);"></div>
+                            <span>Amethyst</span>
+                        </button>
+                        <button class="felt-swatch" data-felt="obsidian" title="Obsidian">
+                            <div class="felt-preview" style="background:radial-gradient(circle,#1a1a20,#08080c);"></div>
+                            <span>Obsidian</span>
+                        </button>
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>Immersive Atmosphere</label>
-                    <div class="theme-options">
-                        <button class="theme-btn active" data-bg="aurora-cyan" title="Cyan Aurora"
-                            style="background: linear-gradient(135deg, #090910, #1a3a3a); border: 1px solid var(--primary);"></button>
-                        <button class="theme-btn" data-bg="aurora-purple" title="Deep Space"
-                            style="background: linear-gradient(135deg, #090910, #2a1a3a); border: 1px solid var(--accent);"></button>
-                        <button class="theme-btn" data-bg="cosmic-red" title="Nebula"
-                            style="background: linear-gradient(135deg, #090910, #3a1a1a); border: 1px solid var(--danger);"></button>
+
+                <div class="settings-section">
+                    <label class="settings-label">✨ Animated Background</label>
+                    <div class="bg-theme-grid" id="bg-theme-grid">
+                        <button class="bg-swatch active" data-bg="aurora-cyan" title="Cyan Aurora">
+                            <div class="bg-preview">
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(77,234,255,0.6),transparent 70%);top:20%;left:30%;">
+                                </div>
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(180,77,234,0.4),transparent 70%);bottom:10%;right:20%;">
+                                </div>
+                            </div><span>Cyan Aurora</span>
+                        </button>
+                        <button class="bg-swatch" data-bg="violet-nebula" title="Violet Nebula">
+                            <div class="bg-preview">
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(138,43,226,0.6),transparent 70%);top:15%;left:25%;">
+                                </div>
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(75,0,130,0.5),transparent 70%);bottom:15%;right:15%;">
+                                </div>
+                            </div><span>Violet Nebula</span>
+                        </button>
+                        <button class="bg-swatch" data-bg="ember-glow" title="Ember Glow">
+                            <div class="bg-preview">
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(255,69,0,0.5),transparent 70%);top:30%;left:20%;">
+                                </div>
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(255,165,0,0.3),transparent 70%);bottom:20%;right:25%;">
+                                </div>
+                            </div><span>Ember Glow</span>
+                        </button>
+                        <button class="bg-swatch" data-bg="deep-ocean" title="Deep Ocean">
+                            <div class="bg-preview">
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(0,105,148,0.6),transparent 70%);top:25%;left:35%;">
+                                </div>
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(0,191,255,0.3),transparent 70%);bottom:10%;right:30%;">
+                                </div>
+                            </div><span>Deep Ocean</span>
+                        </button>
+                        <button class="bg-swatch" data-bg="void" title="Void">
+                            <div class="bg-preview" style="background:#060608;">
+                                <div class="bg-preview-orb"
+                                    style="background:radial-gradient(circle,rgba(255,255,255,0.08),transparent 70%);top:30%;left:40%;width:60%;height:60%;">
+                                </div>
+                            </div><span>Void</span>
+                        </button>
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>Dice Theme</label>
+
+                <div class="settings-section">
+                    <label class="settings-label">🎯 Dice Theme</label>
                     <select id="dice-theme-select" class="custom-select">
                         <option value="classic">Classic White</option>
                         <option value="gold">Luxury Gold</option>
@@ -311,8 +369,9 @@
                         <option value="neon">Neon Cyber</option>
                     </select>
                 </div>
-                <div class="input-group">
-                    <label>Audio</label>
+
+                <div class="settings-section">
+                    <label class="settings-label">🔊 Audio</label>
                     <div class="volume-control-wrapper">
                         <button id="mute-btn" class="icon-btn small">
                             <svg id="volume-icon" width="20" height="20" viewBox="0 0 24 24" fill="none"
@@ -326,16 +385,17 @@
                         </div>
                     </div>
                 </div>
-                <div class="input-group">
-                    <label>UI Zoom</label>
+
+                <div class="settings-section">
+                    <label class="settings-label">🔍 UI Zoom</label>
                     <div class="slider-container">
                         <input type="range" id="zoom-slider" min="0.5" max="1.5" step="0.05" value="1.0">
                         <div id="zoom-value"
-                            style="font-size: 0.7rem; color: var(--primary); margin-top: 4px; font-weight: bold;">100%
-                        </div>
+                            style="font-size:0.7rem;color:var(--primary);margin-top:4px;font-weight:bold;">100%</div>
                     </div>
                 </div>
-                <button class="btn close-modal" style="margin-top: 1rem;">Close</button>
+
+                <button class="btn close-modal" style="margin-top:1rem;width:100%;">Done</button>
             </div>
         </div>
 

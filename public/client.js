@@ -520,6 +520,7 @@ class FarkleClient {
     }
 
     initSettings() {
+        // Open/Close handlers
         if (this.ui.settingsBtn) {
             this.ui.settingsBtn.addEventListener('click', () => {
                 this.ui.settingsModal.classList.remove('hidden');
@@ -527,54 +528,56 @@ class FarkleClient {
             });
         }
         if (this.ui.settingsModal) {
-            this.ui.settingsModal.querySelector('.close-modal').addEventListener('click', () => {
-                this.ui.settingsModal.classList.add('hidden');
-                this.sounds.play('click');
+            this.ui.settingsModal.querySelectorAll('.close-modal').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.ui.settingsModal.classList.add('hidden');
+                    this.sounds.play('click');
+                });
             });
         }
 
-        // Settings UI initialization complete
-
-        // Felt Color (Table)
-        const feltBtnGroup = document.querySelectorAll('.theme-options .theme-btn[data-theme]');
-        feltBtnGroup.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const theme = btn.dataset.theme;
-                let color = '#1a3a2a';
-                if (theme === 'blue') color = '#1a2a4a';
-                if (theme === 'red') color = '#4a1a1a';
-                if (theme === 'purple') color = '#2a1a4a';
-                document.body.style.background = color;
-                feltBtnGroup.forEach(b => b.classList.toggle('active', b === btn));
-                this.sounds.play('select');
+        // ── Table Felt ──
+        const feltGrid = document.getElementById('felt-grid');
+        if (feltGrid) {
+            const feltBtns = feltGrid.querySelectorAll('.felt-swatch');
+            feltBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const felt = btn.dataset.felt;
+                    document.body.setAttribute('data-felt', felt);
+                    feltBtns.forEach(b => b.classList.toggle('active', b === btn));
+                    localStorage.setItem('farkle-felt', felt);
+                    this.sounds.play('select');
+                });
             });
-        });
+        }
 
-        // Background Atmosphere
-        const bgBtnGroup = document.querySelectorAll('.theme-options .theme-btn[data-bg]');
-        const auroraContainer = document.querySelector('.aurora-container');
-        bgBtnGroup.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const bgType = btn.dataset.bg;
-                if (auroraContainer) {
-                    if (bgType === 'aurora-cyan') {
-                        document.documentElement.style.setProperty('--primary-glow', 'rgba(77, 234, 255, 0.3)');
-                        document.documentElement.style.setProperty('--accent-glow', 'rgba(180, 77, 234, 0.3)');
-                    } else if (bgType === 'aurora-purple') {
-                        document.documentElement.style.setProperty('--primary-glow', 'rgba(180, 77, 234, 0.3)');
-                        document.documentElement.style.setProperty('--accent-glow', 'rgba(77, 77, 255, 0.3)');
-                    } else if (bgType === 'cosmic-red') {
-                        document.documentElement.style.setProperty('--primary-glow', 'rgba(224, 90, 71, 0.3)');
-                        document.documentElement.style.setProperty('--accent-glow', 'rgba(234, 77, 180, 0.3)');
+        // ── Animated Background ──
+        const bgThemes = {
+            'aurora-cyan': { glow1: 'rgba(77, 234, 255, 0.3)', glow2: 'rgba(180, 77, 234, 0.3)' },
+            'violet-nebula': { glow1: 'rgba(138, 43, 226, 0.35)', glow2: 'rgba(75, 0, 130, 0.35)' },
+            'ember-glow': { glow1: 'rgba(255, 69, 0, 0.3)', glow2: 'rgba(255, 165, 0, 0.25)' },
+            'deep-ocean': { glow1: 'rgba(0, 105, 148, 0.35)', glow2: 'rgba(0, 191, 255, 0.2)' },
+            'void': { glow1: 'rgba(255, 255, 255, 0.03)', glow2: 'rgba(255, 255, 255, 0.02)' }
+        };
+        const bgGrid = document.getElementById('bg-theme-grid');
+        if (bgGrid) {
+            const bgBtns = bgGrid.querySelectorAll('.bg-swatch');
+            bgBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const bgType = btn.dataset.bg;
+                    const theme = bgThemes[bgType];
+                    if (theme) {
+                        document.documentElement.style.setProperty('--primary-glow', theme.glow1);
+                        document.documentElement.style.setProperty('--accent-glow', theme.glow2);
                     }
-                }
-                bgBtnGroup.forEach(b => b.classList.toggle('active', b === btn));
-                localStorage.setItem('farkle-bg-theme', bgType);
-                this.sounds.play('select');
+                    bgBtns.forEach(b => b.classList.toggle('active', b === btn));
+                    localStorage.setItem('farkle-bg-theme', bgType);
+                    this.sounds.play('select');
+                });
             });
-        });
+        }
 
-        // Dice Theme
+        // ── Dice Theme ──
         const diceSelect = this.ui.diceThemeSelect;
         if (diceSelect) {
             const savedTheme = localStorage.getItem('farkle-dice-theme') || 'classic';
@@ -590,15 +593,13 @@ class FarkleClient {
             });
         }
 
+        // ── Volume ──
         if (this.ui.volumeSlider) {
             this.ui.volumeSlider.addEventListener('input', (e) => {
                 const vol = parseFloat(e.target.value);
                 this.sounds.setVolume(vol);
                 localStorage.setItem('farkle_volume', vol);
                 this.updateVolumeIcon(vol);
-                // If it was muted by volume 0, and we slide up, but master toggle is OFF, 
-                // we should probably NOT unmute the master toggle unless the user explicitly clicks mute.
-                // But if they slide volume up from 0, it's expected to hear something IF enabled.
             });
         }
 
@@ -611,13 +612,14 @@ class FarkleClient {
             quickMute.addEventListener('click', () => this.toggleMute());
         }
 
+        // ── Zoom ──
         if (this.ui.zoomSlider) {
             this.ui.zoomSlider.addEventListener('input', (e) => {
                 this.setZoom(parseFloat(e.target.value));
             });
         }
 
-        // Restore Settings
+        // ── Restore All Settings ──
         const savedVol = localStorage.getItem('farkle_volume');
         if (savedVol !== null && this.ui.volumeSlider) {
             const vol = parseFloat(savedVol);
@@ -626,15 +628,35 @@ class FarkleClient {
             this.updateVolumeIcon(vol);
         }
 
+        // Restore Felt
+        const savedFelt = localStorage.getItem('farkle-felt');
+        if (savedFelt && feltGrid) {
+            document.body.setAttribute('data-felt', savedFelt);
+            const target = feltGrid.querySelector(`[data-felt="${savedFelt}"]`);
+            if (target) {
+                feltGrid.querySelectorAll('.felt-swatch').forEach(b => b.classList.remove('active'));
+                target.classList.add('active');
+            }
+        }
+
+        // Restore Background
         const savedBg = localStorage.getItem('farkle-bg-theme');
-        if (savedBg) {
-            const targetBtn = Array.from(bgBtnGroup).find(b => b.dataset.bg === savedBg);
-            if (targetBtn) targetBtn.click();
+        if (savedBg && bgGrid) {
+            const theme = bgThemes[savedBg];
+            if (theme) {
+                document.documentElement.style.setProperty('--primary-glow', theme.glow1);
+                document.documentElement.style.setProperty('--accent-glow', theme.glow2);
+            }
+            const target = bgGrid.querySelector(`[data-bg="${savedBg}"]`);
+            if (target) {
+                bgGrid.querySelectorAll('.bg-swatch').forEach(b => b.classList.remove('active'));
+                target.classList.add('active');
+            }
         }
 
         const savedMuted = localStorage.getItem('farkle_muted') === 'true';
         if (savedMuted) {
-            this.sounds.enabled = true; // Temporary set to true so toggleMute flips it to false
+            this.sounds.enabled = true;
             this.toggleMute();
         }
 

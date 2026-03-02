@@ -1738,3 +1738,259 @@ body[data-dice-theme='dark'] .pip {
         display: none;
     }
 }
+
+/* ============================================
+   PREMIUM SETTINGS PANEL
+   ============================================ */
+.settings-panel {
+    max-width: 480px !important;
+    max-height: 85vh;
+    overflow-y: auto;
+}
+
+.settings-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    padding-bottom: 1rem;
+}
+
+.settings-close-x {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text-muted);
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1.1rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.settings-close-x:hover {
+    background: var(--danger);
+    color: white;
+    border-color: var(--danger);
+}
+
+.settings-section {
+    margin-bottom: 1.2rem;
+}
+
+.settings-label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    margin-bottom: 0.6rem;
+}
+
+/* --- Felt Grid --- */
+.felt-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.felt-swatch {
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.felt-swatch span {
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+}
+
+.felt-swatch:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.felt-swatch.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.felt-swatch.active span {
+    color: var(--primary);
+}
+
+.felt-preview {
+    width: 100%;
+    aspect-ratio: 1.2;
+    border-radius: 8px;
+    position: relative;
+    overflow: hidden;
+}
+
+.felt-preview::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E");
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+/* --- Background Theme Grid --- */
+.bg-theme-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 8px;
+}
+
+.bg-swatch {
+    background: rgba(255, 255, 255, 0.03);
+    border: 2px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 6px;
+    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.bg-swatch span {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+}
+
+.bg-swatch:hover {
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-2px);
+}
+
+.bg-swatch.active {
+    border-color: var(--primary);
+    box-shadow: 0 0 12px var(--primary-glow);
+}
+
+.bg-swatch.active span {
+    color: var(--primary);
+}
+
+.bg-preview {
+    width: 100%;
+    aspect-ratio: 1.2;
+    border-radius: 8px;
+    background: #090910;
+    position: relative;
+    overflow: hidden;
+}
+
+.bg-preview-orb {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    border-radius: 50%;
+    filter: blur(8px);
+    animation: orbPulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes orbPulse {
+    0% {
+        opacity: 0.5;
+        transform: scale(0.9);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1.15);
+    }
+}
+
+/* ============================================
+   TABLE FELT THEMES (Applied to dice-arena + player-zones)
+   ============================================ */
+body[data-felt="emerald"] .dice-arena {
+    background: radial-gradient(circle at center, #1a4a2e 0%, #0d2618 60%, #090910 100%);
+}
+
+body[data-felt="emerald"] .player-zones {
+    background: rgba(26, 74, 46, 0.25);
+    border-color: rgba(26, 74, 46, 0.3);
+}
+
+body[data-felt="emerald"] .dice-container {
+    background: rgba(26, 74, 46, 0.3);
+    border-color: rgba(26, 74, 46, 0.4);
+}
+
+body[data-felt="sapphire"] .dice-arena {
+    background: radial-gradient(circle at center, #1a2e4a 0%, #0d1828 60%, #090910 100%);
+}
+
+body[data-felt="sapphire"] .player-zones {
+    background: rgba(26, 46, 74, 0.25);
+    border-color: rgba(26, 46, 74, 0.3);
+}
+
+body[data-felt="sapphire"] .dice-container {
+    background: rgba(26, 46, 74, 0.3);
+    border-color: rgba(26, 46, 74, 0.4);
+}
+
+body[data-felt="crimson"] .dice-arena {
+    background: radial-gradient(circle at center, #4a1a1a 0%, #280d0d 60%, #090910 100%);
+}
+
+body[data-felt="crimson"] .player-zones {
+    background: rgba(74, 26, 26, 0.25);
+    border-color: rgba(74, 26, 26, 0.3);
+}
+
+body[data-felt="crimson"] .dice-container {
+    background: rgba(74, 26, 26, 0.3);
+    border-color: rgba(74, 26, 26, 0.4);
+}
+
+body[data-felt="amethyst"] .dice-arena {
+    background: radial-gradient(circle at center, #2e1a4a 0%, #180d28 60%, #090910 100%);
+}
+
+body[data-felt="amethyst"] .player-zones {
+    background: rgba(46, 26, 74, 0.25);
+    border-color: rgba(46, 26, 74, 0.3);
+}
+
+body[data-felt="amethyst"] .dice-container {
+    background: rgba(46, 26, 74, 0.3);
+    border-color: rgba(46, 26, 74, 0.4);
+}
+
+body[data-felt="obsidian"] .dice-arena {
+    background: radial-gradient(circle at center, #1a1a20 0%, #0c0c10 60%, #060608 100%);
+}
+
+body[data-felt="obsidian"] .player-zones {
+    background: rgba(20, 20, 28, 0.35);
+    border-color: rgba(255, 255, 255, 0.03);
+}
+
+body[data-felt="obsidian"] .dice-container {
+    background: rgba(20, 20, 28, 0.4);
+    border-color: rgba(255, 255, 255, 0.05);
+}
