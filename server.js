@@ -1052,18 +1052,8 @@ io.on('connection', (socket) => {
 
             socket.playerName = name;
 
-            // 🏅 PERSISTENCE: Pre-fill guest users in DB for leaderboards
-            const persistenceId = data?.dbId || data?.reconnectToken;
-            if (persistenceId && !data?.dbId) {
-                try {
-                    await db.upsertUser({
-                        id: persistenceId,
-                        username: name,
-                        global_name: name,
-                        avatar: null
-                    });
-                } catch (dbErr) { }
-            }
+            // Only Discord-authenticated users (with dbId) exist in the DB.
+            // Guest/reconnect tokens are NEVER stored in users table.
 
             game.addPlayer(socket.id, name, data?.reconnectToken, data?.dbId);
             socket.join(roomCode);
@@ -1301,23 +1291,9 @@ io.on('connection', (socket) => {
 
             socket.playerName = name;
 
-            // 🏅 PERSISTENCE: Use Discord ID if available, fallback to reconnectToken for guests
+            // Only Discord-authenticated users (with dbId) enter the DB.
+            // Guest/reconnect tokens NEVER create user entries.
             const persistenceId = data?.dbId || data?.reconnectToken;
-
-            // Only pre-fill user in DB if it's a guest (to allow them on leaderboard)
-            // If they have a data.dbId, they are a Discord user and already upserted via /api/token
-            if (persistenceId && !data?.dbId) {
-                try {
-                    await db.upsertUser({
-                        id: persistenceId,
-                        username: baseName,
-                        global_name: baseName,
-                        avatar: null
-                    });
-                } catch (dbErr) {
-                    console.warn(`[Game ${roomCode}] DB Guest Upsert Failed:`, dbErr.message);
-                }
-            }
 
             game.addPlayer(socket.id, name, data?.reconnectToken, persistenceId);
 

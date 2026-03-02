@@ -153,11 +153,16 @@ export const db = {
     },
 
     upsertUser: async (userData) => {
-        // Priority: global_name (nickname) -> username (unique string) -> random fallback
-        // ALWAYS avoid using ID as a name.
+        // GATE: Only real Discord IDs (numeric snowflakes, 17+ digits) may enter the DB
+        if (!userData.id || !/^\d{17,}$/.test(userData.id)) {
+            console.warn(`[DB] REJECTED upsert: "${userData.id}" is not a valid Discord ID. Skipping.`);
+            return null;
+        }
+
+        // Priority: global_name (nickname) -> username (unique string)
         let displayName = userData.global_name || userData.username;
 
-        // If the name is just a number (likely ID being passed as name by mistake or placeholder)
+        // If the name is just a number (likely ID being passed as name by mistake)
         if (displayName && /^\d+$/.test(displayName)) {
             displayName = `Player ${displayName.substring(0, 4)}`;
         }
@@ -265,6 +270,11 @@ export const db = {
     },
 
     recordGameEnd: async (userId, isWin, score, maxRoundScore, farkles, mode = 'casual') => {
+        // GATE: Only real Discord IDs
+        if (!userId || !/^\d{17,}$/.test(userId)) {
+            console.warn(`[DB] REJECTED recordGameEnd: "${userId}" is not a valid Discord ID.`);
+            return;
+        }
         try {
             if (dbType === 'postgres') {
                 await pool.query(`INSERT INTO user_stats (user_id, mode) VALUES ($1, $2) ON CONFLICT (user_id, mode) DO NOTHING`, [userId, mode]);
